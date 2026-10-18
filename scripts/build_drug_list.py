@@ -52,9 +52,7 @@ def read_reference() -> list[str]:
 def fetch_openfda(limit: int = 100) -> list[str]:
     url = f"https://api.fda.gov/drug/label.json?count=openfda.generic_name.exact&limit={limit}"
     try:
-        with urllib.request.urlopen(
-            url, timeout=10
-        ) as response:  # noqa: S310  # nosec B310
+        with urllib.request.urlopen(url, timeout=10) as response:  # noqa: S310  # nosec B310
             payload = json.load(response)
     except Exception as exc:  # noqa: BLE001 - any failure means "stay offline"
         print(f"openFDA unavailable ({exc.__class__.__name__}); using the bundled list only.")
