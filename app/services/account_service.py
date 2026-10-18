@@ -75,7 +75,7 @@ def get_user_by_public_id(db: Session, public_id: str) -> User:
     return user
 
 
-# --- registration -----------------------------------------------------------------------------
+# --- registration ------------------------------------------------------------------------------
 
 
 def register_user(db: Session, data: RegisterIn) -> User:
@@ -104,7 +104,7 @@ def register_user(db: Session, data: RegisterIn) -> User:
     return user
 
 
-# --- sign-in ----------------------------------------------------------------------------------
+# --- sign-in -----------------------------------------------------------------------------------
 
 
 def _fail(db: Session, user: User | None, reason: str) -> AuthFailed:
@@ -195,7 +195,7 @@ def change_password(db: Session, user: User, current: str, new: str) -> None:
     db.commit()
 
 
-# --- doctor accounts and activation --------------------------------------------------------------
+# --- doctor accounts and activation ------------------------------------------------------------
 
 
 def _issue_activation_token(db: Session, user: User) -> tuple[str, datetime]:
@@ -310,7 +310,7 @@ def activate_doctor(
     return user
 
 
-# --- admin actions ----------------------------------------------------------------
+# --- admin actions -----------------------------------------------------------------------------
 
 
 def list_users(

@@ -343,6 +343,13 @@ EXPECTED_ACCESS: dict[tuple[str, str], object] = {
     ("GET", "/api/admin/audit/verify"): {"auditor"},
     ("POST", "/api/admin/audit/checkpoint"): {"auditor"},
     ("GET", "/api/admin/security-events"): {"admin", "auditor"},
+    ("POST", "/api/prescriptions"): {"doctor"},
+    ("GET", "/api/prescriptions/mine"): {"doctor", "patient"},
+    ("GET", "/api/prescriptions/{rx_id}/pdf"): {"doctor", "patient"},
+    ("POST", "/api/prescriptions/{rx_id}/revoke"): {"doctor"},
+    ("GET", "/api/patients/lookup"): {"doctor"},
+    ("GET", "/api/keys/mine"): {"doctor"},
+    ("POST", "/api/keys/rotate"): {"doctor"},
 }
 
 
@@ -391,11 +398,13 @@ def _headers(client: TestClient, role: str | None, path: str, cache: dict) -> di
 def test_role_endpoint_matrix(matrix_env, role, method, path, _cache={}):  # noqa: B006
     matrix_env.cookies.clear()  # logins above set cookies; "anonymous" must really be anonymous
     allowed = EXPECTED_ACCESS[(method, path)]
-    url = path.replace("{user_id}", FAKE_ID)
+    url = path.replace("{user_id}", FAKE_ID).replace("{rx_id}", FAKE_ID)
     headers = _headers(matrix_env, role, path, _cache)
     response = matrix_env.request(
         method, url, headers=headers, json={} if method != "GET" else None
     )
+    if path.endswith(("/logout", "/change-password")):
+        _cache.pop(role, None)  # these end every session of the user: drop the cached token
 
     if allowed == PUBLIC:
         should_pass = True

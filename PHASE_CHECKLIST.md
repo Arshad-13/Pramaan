@@ -59,14 +59,14 @@ Tiers: **T0** must ship, **T1** should ship, **T2** dropped for the 13-day windo
 Extras done in P3: audit endpoints (`/admin/audit`, `verify`, `checkpoint`), `scripts/create_user.py` to bootstrap admin/auditor, admin UI (approvals, activation-code panel, user list, deactivate). Admin accounts use public UUIDs in URLs (`/admin/users/{user_id}`).
 
 ## P4: Issue prescription (Wed 21 - Thu 22) T0
-- [ ] Payload v2 built once; `max_fills`, doctor/patient blocks, `key_id` (M1)
-- [ ] `pdf_layout.py` (single source of positions, fiducials) + deterministic `pdf.py` from payload only (M1)
-- [ ] QR `PRM2...` build/parse with strict validation; fuzz tests (M1)
-- [ ] `POST /prescriptions`: sign, encrypt payload + PDF, store, audit in same transaction (M2)
-- [ ] Wrong signing password: generic 403; lockout after `MAX_FAILED_UNLOCKS` (M2)
-- [ ] `GET /prescriptions/{id}/pdf` (owner only), `/prescriptions/mine`, revoke, exact patient lookup (M2)
-- [ ] `POST /keys/rotate`, `GET /keys/mine` (M2)
-- [ ] React: New Prescription with live preview; My Prescriptions (M4)
+- [x] Payload v2 built once; `max_fills`, doctor/patient blocks, `key_id` (M1)
+- [x] `pdf_layout.py` (single source of positions, fiducials) + deterministic `pdf.py` from payload only (M1)
+- [x] QR `PRM2...` build/parse with strict validation; fuzz tests (M1)
+- [x] `POST /prescriptions`: sign, encrypt payload + PDF, store, audit in same transaction (M2)
+- [x] Wrong signing password: generic 403; lockout after `MAX_FAILED_UNLOCKS` (M2)
+- [x] `GET /prescriptions/{id}/pdf` (owner only), `/prescriptions/mine`, revoke, exact patient lookup (M2)
+- [x] `POST /keys/rotate`, `GET /keys/mine` (M2)
+- [x] React: New Prescription with live preview; My Prescriptions (M4)
 
 **Done when:** files on disk and `payload_enc` are ciphertext; owner can download; others get 404.
 

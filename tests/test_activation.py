@@ -72,7 +72,7 @@ def active_doctor(client, admin):
     return created
 
 
-# --- creating doctors ---------------------------------------------------------------------------
+# --- creating doctors --------------------------------------------------------------------------
 
 
 def test_admin_creates_a_doctor_without_a_password_and_gets_a_one_time_token(client, admin):
@@ -119,7 +119,7 @@ def test_doctor_cannot_sign_in_before_activating(client, admin):
     assert login(client, DOCTOR["email"]).status_code == 401
 
 
-# --- activating ----------------------------------------------------------------------------------
+# --- activating --------------------------------------------------------------------------------
 
 
 def test_activation_creates_a_protected_key_and_enables_sign_in(client, admin):
@@ -216,7 +216,7 @@ def test_a_patient_account_cannot_be_activated_as_a_doctor(client, admin):
     assert activate(client, token, email="p@example.test").status_code == 400
 
 
-# --- suspension ---------------------------------------------------------------------------------
+# --- suspension --------------------------------------------------------------------------------
 
 
 def test_suspending_a_doctor_revokes_keys_and_kills_sessions(client, admin):
@@ -257,7 +257,7 @@ def test_unknown_user_ids_are_404(client, admin):
         assert call.status_code == 404
 
 
-# --- pharmacist approval -------------------------------------------------------------------------
+# --- pharmacist approval -----------------------------------------------------------------------
 
 
 def register_pharmacist(client, email="ph@example.test"):
@@ -315,7 +315,7 @@ def test_user_list_filters_and_pagination(client, admin):
     assert client.get("/api/admin/users?limit=0", headers=admin).status_code == 422
 
 
-# --- audit trail and auditor endpoints ---------------------------------------------
+# --- audit trail and auditor endpoints ---------------------------------------------------------
 
 
 def test_account_actions_leave_a_verifiable_audit_trail(client, admin, auditor):

@@ -34,3 +34,47 @@ export const ROLE_LABEL: Record<Role, string> = {
   admin: 'Administrator',
   auditor: 'Auditor',
 }
+
+export type Frequency = 'OD' | 'BD' | 'TDS' | 'QID' | 'HS' | 'SOS'
+export type RxStatus = 'ISSUED' | 'DISPENSED' | 'REVOKED' | 'EXPIRED'
+
+export interface Medicine {
+  name: string
+  dose_mg: number
+  frequency: Frequency
+  duration_days: number
+}
+
+export interface Prescription {
+  id: string
+  status: RxStatus
+  issued_at: string
+  expires_at: string
+  max_fills: number
+  fills_used: number
+  doctor_name: string | null
+  patient_name: string | null
+  medicines: Medicine[]
+  notes: string
+  key_id: string
+  fingerprint: string
+  risk_score: number | null
+  readable: boolean
+}
+
+export interface IssueResult {
+  rx_id: string
+  issued_at: string
+  expires_at: string
+  max_fills: number
+  key_id: string
+  fingerprint: string
+  risk: { score: number; flags: string[]; explanations: string[] }
+  warnings: string[]
+}
+
+export interface PatientMatch {
+  public_id: string
+  name: string
+  patient_code: string | null
+}

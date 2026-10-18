@@ -46,7 +46,7 @@ def make_user(
             org_name="Org" if role in (Role.doctor, Role.pharmacist) else None,
             approval_status=approval,
             is_active=is_active,
-            patient_code=f"T-{uuid.uuid4().hex[:8]}" if role == Role.patient else None,
+            patient_code=f"T-{uuid.uuid4().hex[:8].upper()}" if role == Role.patient else None,
         )
         db.add(user)
         db.flush()

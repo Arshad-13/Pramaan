@@ -159,3 +159,99 @@ class AuditVerifyOut(BaseModel):
     last_seq: int
     checkpoints: int
     anchors: int
+
+
+# --- prescriptions and keys (Phase 4) -------------------------------------------------------------
+
+Frequency = Literal["OD", "BD", "TDS", "QID", "HS", "SOS"]
+
+
+def _clean_notes(value: str) -> str:
+    """Notes may contain newlines; everything else goes through the same canonical checks."""
+    try:
+        return normalise({"notes": value.strip()})["notes"]
+    except CanonicalError as exc:
+        raise ValueError("contains characters that are not allowed") from exc
+
+
+class MedicineIn(Strict):
+    name: Annotated[str, Field(min_length=2, max_length=60), AfterValidator(_clean_text)]
+    dose_mg: Annotated[int, Field(ge=1, le=99999)]
+    frequency: Frequency
+    duration_days: Annotated[int, Field(ge=1, le=365)]
+
+
+class IssueIn(Strict):
+    patient_id: Annotated[str, Field(min_length=1, max_length=64)]
+    medicines: Annotated[list[MedicineIn], Field(min_length=1, max_length=8)]
+    notes: Annotated[str, Field(max_length=500), AfterValidator(_clean_notes)] = ""
+    validity_days: Annotated[int, Field(ge=1, le=90)] = 30
+    max_fills: Annotated[int, Field(ge=1, le=5)] = 1
+    age_years: Annotated[int, Field(ge=0, le=120)] | None = None
+    signing_password: Password
+    override_reason: Annotated[str, Field(max_length=300)] | None = None
+    require_pin: bool = True
+
+
+class RiskOut(BaseModel):
+    score: int
+    flags: list[str]
+    explanations: list[str]
+
+
+class IssueOut(BaseModel):
+    rx_id: str
+    issued_at: datetime
+    expires_at: datetime
+    max_fills: int
+    key_id: str
+    fingerprint: str
+    risk: RiskOut
+    warnings: list[str]
+
+
+class MedicineOut(BaseModel):
+    name: str
+    dose_mg: int
+    frequency: str
+    duration_days: int
+
+
+class PrescriptionOut(BaseModel):
+    id: str
+    status: (
+        str  # what to show: ISSUED, DISPENSED, REVOKED or EXPIRED (derived from the signed expiry)
+    )
+    issued_at: datetime
+    expires_at: datetime
+    max_fills: int
+    fills_used: int
+    doctor_name: str | None
+    patient_name: str | None
+    medicines: list[MedicineOut]
+    notes: str
+    key_id: str
+    fingerprint: str
+    risk_score: int | None = None  # visible to the issuing doctor only
+    readable: bool = True  # False if the stored record failed its integrity check
+
+
+class KeyOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    key_id: str
+    status: str
+    created_at: datetime
+    revoked_at: datetime | None
+    revoke_reason: str | None
+
+
+class RotateKeyIn(Strict):
+    current_signing_password: Password
+    new_signing_password: Password
+
+
+class PatientLookupOut(BaseModel):
+    public_id: str
+    name: str
+    patient_code: str | None

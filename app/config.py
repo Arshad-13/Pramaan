@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
 
     @property
+    def master_key_bytes(self) -> bytes:
+        """The 32-byte key-encryption key (validated at startup)."""
+        return base64.b64decode(self.master_key)
+
+    @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 

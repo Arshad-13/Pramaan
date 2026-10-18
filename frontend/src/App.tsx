@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { FilePlus2, Files, ScanLine, ScrollText } from 'lucide-react'
+import { ScanLine, ScrollText } from 'lucide-react'
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Toaster } from 'sonner'
@@ -16,6 +16,8 @@ const Activate = lazy(() => import('@/pages/Activate'))
 const Register = lazy(() => import('@/pages/Register'))
 const Admin = lazy(() => import('@/pages/Admin'))
 const DesignSystem = lazy(() => import('@/pages/DesignSystem'))
+const NewPrescription = lazy(() => import('@/pages/NewPrescription'))
+const MyPrescriptions = lazy(() => import('@/pages/MyPrescriptions'))
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 10_000, refetchOnWindowFocus: false } },
@@ -43,12 +45,7 @@ export default function App() {
                 path="prescriptions/new"
                 element={
                   <RequireAuth roles={['doctor']}>
-                    <Placeholder
-                      title="New prescription"
-                      icon={FilePlus2}
-                      phase="Phase 4"
-                      description="Choose a patient, add medicines, review the risk check, and sign with your signing password. A live preview shows exactly what will be printed and signed."
-                    />
+                    <NewPrescription />
                   </RequireAuth>
                 }
               />
@@ -56,12 +53,7 @@ export default function App() {
                 path="prescriptions"
                 element={
                   <RequireAuth roles={['doctor', 'patient']}>
-                    <Placeholder
-                      title="My prescriptions"
-                      icon={Files}
-                      phase="Phase 4"
-                      description="Your issued prescriptions with their status. Doctors can revoke; patients see their dispense PIN here."
-                    />
+                    <MyPrescriptions />
                   </RequireAuth>
                 }
               />

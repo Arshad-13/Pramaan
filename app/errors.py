@@ -53,3 +53,10 @@ class Conflict(ServiceError):
 class BadRequest(ServiceError):
     status_code = 400
     detail = "Bad request."
+
+
+class Locked(ServiceError):
+    """A resource is temporarily locked (for example the signing key after wrong passwords)."""
+
+    status_code = 423
+    detail = "Temporarily locked."
