@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     pbkdf2_iterations: int = 600_000
     storage_dir: str = "./storage"
     anchor_file: str = "./storage/anchors.jsonl"
+    audit_checkpoint_every: int = 50  # signed audit checkpoint every N entries
 
     risk_threshold: int = 60
     max_failed_logins: int = 5

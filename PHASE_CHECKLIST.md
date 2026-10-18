@@ -34,11 +34,11 @@ Tiers: **T0** must ship, **T1** should ship, **T2** dropped for the 13-day windo
 **Done when:** all crypto tests green.
 
 ## P2: Audit log (Tue 20) T0
-- [ ] `audit.py`: HMAC chain, appends in the caller's transaction, no commit inside (M2)
-- [ ] Signed checkpoints every 50 entries + on demand; `ANCHOR_FILE` lines appended (M2)
-- [ ] `verify_chain` returns `ok`, `checked`, `first_bad_seq`, `checkpoint_ok`, `truncated` (M2)
-- [ ] `scripts/tamper_audit_demo.py` with `edit`, `recompute`, `truncate` modes (M2)
-- [ ] `tests/test_audit_chain.py` covers all three tamper modes (M2)
+- [x] `audit.py`: HMAC chain, appends in the caller's transaction, no commit inside (M2)
+- [x] Signed checkpoints every 50 entries + on demand; `ANCHOR_FILE` lines appended (M2)
+- [x] `verify_chain` returns `ok`, `checked`, `first_bad_seq`, `checkpoint_ok`, `truncated` (M2)
+- [x] `scripts/tamper_audit_demo.py` with `edit`, `recompute`, `truncate` modes (M2)
+- [x] `tests/test_audit_chain.py` covers all three tamper modes (M2)
 
 **Done when:** chain passes normally; each tamper mode fails with the right result.
 

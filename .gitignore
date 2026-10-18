@@ -30,3 +30,4 @@ frontend/test-results/
 Thumbs.db
 .idea/
 .vscode/
+*.db.demo*
