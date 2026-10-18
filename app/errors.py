@@ -11,9 +11,10 @@ class ServiceError(Exception):
     status_code = 400
     detail = "Bad request"
 
-    def __init__(self, detail: str | None = None) -> None:
+    def __init__(self, detail: str | None = None, extra: dict | None = None) -> None:
         super().__init__(detail or self.detail)
         self.message = detail or self.detail
+        self.extra = extra or {}  # additional JSON fields for the response body
 
 
 class AuthFailed(ServiceError):
@@ -60,3 +61,10 @@ class Locked(ServiceError):
 
     status_code = 423
     detail = "Temporarily locked."
+
+
+class RiskConfirmationRequired(ServiceError):
+    """The prescription looks unusual: the doctor must confirm with a reason before it is signed."""
+
+    status_code = 409
+    detail = "This prescription needs your confirmation before it can be signed."

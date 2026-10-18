@@ -21,9 +21,11 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
+from app.ai import drug_match
+from app.ai import risk as risk_mod
 from app.config import get_settings
 from app.core import audit, clock, crypto
 from app.core import payload as payload_mod
@@ -31,10 +33,21 @@ from app.core import pin as pin_mod
 from app.core.canonical import canonical_bytes, sha256_hex
 from app.core.pdf import render_prescription_pdf
 from app.core.qr import build_qr, new_rx_id
-from app.errors import BadRequest, Conflict, NotFound
-from app.models import ApprovalStatus, Prescription, Role, RxStatus, User
-from app.schemas import IssueIn, IssueOut, MedicineOut, PinOut, PrescriptionOut, RiskOut
-from app.services import key_service
+from app.errors import BadRequest, Conflict, NotFound, RiskConfirmationRequired
+from app.models import ApprovalStatus, Prescription, Role, RxStatus, Severity, User
+from app.schemas import (
+    DrugOut,
+    IssueIn,
+    IssueOut,
+    MedicineNoteOut,
+    MedicineOut,
+    PinOut,
+    PrescriptionOut,
+    RiskCheckIn,
+    RiskCheckOut,
+    RiskOut,
+)
+from app.services import events, key_service
 
 
 def _kek() -> tuple[bytes, int]:
@@ -44,6 +57,56 @@ def _kek() -> tuple[bytes, int]:
 
 def _pdf_path(rx_id: str) -> Path:
     return Path(get_settings().storage_dir) / f"{rx_id}.pdf.enc"
+
+
+# --- risk ---------------------------------------------------------------------------------------
+
+
+def _doctor_rx_last_24h(db: Session, doctor: User) -> int:
+    since = clock.now_utc() - timedelta(hours=24)
+    return (
+        db.scalar(
+            select(func.count())
+            .select_from(Prescription)
+            .where(Prescription.doctor_id == doctor.id, Prescription.issued_at >= since)
+        )
+        or 0
+    )
+
+
+def _assess(db: Session, doctor: User, medicines: list[dict[str, Any]]) -> risk_mod.RiskResult:
+    return risk_mod.assess(
+        medicines,
+        doctor_rx_last_24h=_doctor_rx_last_24h(db, doctor),
+        issue_hour=clock.now_utc().hour,
+    )
+
+
+def _risk_out(risk: risk_mod.RiskResult) -> RiskOut:
+    return RiskOut(score=risk.score, flags=risk.flags, explanations=risk.explanations)
+
+
+def risk_check(db: Session, doctor: User, data: RiskCheckIn) -> RiskCheckOut:
+    """Live pre-check while the doctor fills the form (no signing password needed)."""
+    risk = _assess(db, doctor, [m.model_dump() for m in data.medicines])
+    warnings = list(risk.warnings)
+    if risk.controlled and data.max_fills > 1:
+        warnings.append("CONTROLLED_NO_REFILLS")
+    return RiskCheckOut(
+        risk=_risk_out(risk),
+        threshold=get_settings().risk_threshold,
+        requires_override=risk.score >= get_settings().risk_threshold,
+        medicines=[MedicineNoteOut(**vars(n)) for n in risk.notes],
+        warnings=warnings,
+        controlled=risk.controlled,
+    )
+
+
+def list_drugs() -> list[DrugOut]:
+    return [
+        DrugOut(name=e.name, generic=e.generic, is_brand=e.is_brand)
+        for e in drug_match.load_catalog().names()
+    ]
 
 
 # --- issuing ------------------------------------------------------------------------------------
@@ -93,6 +156,25 @@ def issue_prescription(db: Session, doctor: User, data: IssueIn) -> IssueOut:
     except (payload_mod.PayloadError, ValueError) as exc:
         raise BadRequest(str(exc)) from exc
 
+    risk = _assess(db, doctor, [m.model_dump() for m in data.medicines])
+    threshold = get_settings().risk_threshold
+    if risk.controlled and data.max_fills > 1:
+        raise BadRequest("Controlled medicines cannot be refilled. Set fills to 1.")
+    needs_override = risk.score >= threshold
+    override_reason = (data.override_reason or "").strip()
+    if needs_override and not override_reason:
+        raise RiskConfirmationRequired(
+            extra={
+                "code": "RISK_CONFIRMATION_REQUIRED",
+                "risk": _risk_out(risk).model_dump(),
+                "threshold": threshold,
+            }
+        )
+    if needs_override and len(override_reason) < 10:
+        raise BadRequest(
+            "Give a short reason (at least 10 characters) for issuing despite the warnings."
+        )
+
     # Only now spend the password-hashing time: input is valid.
     key, private_key = key_service.unlock_active_key(db, doctor, data.signing_password)
 
@@ -127,10 +209,10 @@ def issue_prescription(db: Session, doctor: User, data: IssueIn) -> IssueOut:
             else None
         ),
         require_pin=data.require_pin,
-        risk_score=0,
-        risk_flags="[]",
-        risk_features_json="{}",
-        override_reason=data.override_reason,
+        risk_score=risk.score,
+        risk_flags=json.dumps(risk.flags),
+        risk_features_json=json.dumps(risk.features, sort_keys=True),
+        override_reason=override_reason if needs_override else None,
         issued_at=issued_at,
         expires_at=expires_at,
         pdf_path=str(_pdf_path(rx_id)),
@@ -138,14 +220,29 @@ def issue_prescription(db: Session, doctor: User, data: IssueIn) -> IssueOut:
     )
     db.add(row)
     audit.append(
-        db, doctor.id, doctor.role.value, "RX_ISSUED", rx_id,
+        db,
+        doctor.id,
+        doctor.role.value,
+        "RX_ISSUED_WITH_OVERRIDE" if needs_override else "RX_ISSUED",
+        rx_id,
         {
             "key_id": key.key_id,
             "medicines": len(data.medicines),
             "max_fills": data.max_fills,
             "validity_days": data.validity_days,
+            "risk_score": risk.score,
+            "risk_flags": risk.flags,
         },
-    )  # fmt: skip
+    )
+    if needs_override:
+        events.record_event(
+            db,
+            event_type="RISK_OVERRIDE",
+            severity=Severity.LOW,
+            user_id=doctor.id,
+            ip=None,
+            details={"rx_id": rx_id, "risk_score": risk.score},
+        )
 
     path = _pdf_path(rx_id)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -163,8 +260,8 @@ def issue_prescription(db: Session, doctor: User, data: IssueIn) -> IssueOut:
         max_fills=data.max_fills,
         key_id=key.key_id,
         fingerprint=payload_mod.fingerprint(payload_hash),
-        risk=RiskOut(score=0, flags=[], explanations=[]),
-        warnings=[],
+        risk=_risk_out(risk),
+        warnings=risk.warnings,
     )
 
 

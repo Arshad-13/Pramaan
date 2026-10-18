@@ -192,6 +192,22 @@ describe('Verify page', () => {
     expect(screen.queryByRole('button', { name: 'Dispense' })).not.toBeInTheDocument()
   })
 
+  it('explains why a suspicious prescription was flagged and offers no dispense', async () => {
+    route({
+      ...VALID,
+      result: 'SUSPICIOUS',
+      reason_codes: ['RISK_ABOVE_THRESHOLD'],
+      can_dispense: false,
+      risk: { score: 60, flags: ['UNKNOWN_DRUG'], explanations: ['"Xyzzolam" is not in the drug list.'] },
+    })
+    renderVerify()
+    await pasteAndVerify()
+    expect(await screen.findByRole('heading', { name: 'Suspicious' })).toBeInTheDocument()
+    const why = screen.getByRole('region', { name: /Why this was flagged/ })
+    expect(within(why).getByText('"Xyzzolam" is not in the drug list.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Dispense' })).not.toBeInTheDocument()
+  })
+
   it('shows the record but no dispense control for a revoked prescription', async () => {
     route({ ...VALID, result: 'REVOKED', reason_codes: ['RX_REVOKED'], can_dispense: false })
     renderVerify()

@@ -1,4 +1,4 @@
-import { Loader2, QrCode, ScanLine, TextCursorInput } from 'lucide-react'
+import { Loader2, QrCode, ScanLine, TextCursorInput, TriangleAlert } from 'lucide-react'
 import { useCallback, useState, type FormEvent } from 'react'
 
 import { DispensePanel } from '@/components/DispensePanel'
@@ -43,6 +43,24 @@ function Verdict({ result }: { result: VerifyResult }) {
           </ul>
         )}
       </div>
+    </section>
+  )
+}
+
+/** Why a prescription was flagged: plain-language reasons from the rule checks. */
+function RiskNotes({ result }: { result: VerifyResult }) {
+  const notes = result.risk?.explanations ?? []
+  if (notes.length === 0) return null
+  return (
+    <section aria-labelledby="risk-notes-h" className="rounded-lg border border-warning-border bg-warning-soft p-5">
+      <h3 id="risk-notes-h" className="flex items-center gap-2 text-sm font-semibold text-warning">
+        <TriangleAlert className="size-4" aria-hidden="true" /> Why this was flagged
+      </h3>
+      <ul className="mt-2 space-y-1 text-sm text-foreground">
+        {notes.map((text) => (
+          <li key={text}>{text}</li>
+        ))}
+      </ul>
     </section>
   )
 }
@@ -163,6 +181,7 @@ export default function Verify() {
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] lg:items-start">
             <div className="space-y-6 lg:order-2">
               <VerifiedRecord result={result} />
+              <RiskNotes result={result} />
               {result.can_dispense && qr && <DispensePanel result={result} qr={qr} onReset={reset} />}
             </div>
             <div className="lg:order-1">

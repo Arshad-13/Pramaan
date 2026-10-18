@@ -131,3 +131,33 @@ export interface PinInfo {
   seconds_remaining: number
   step_seconds: number
 }
+
+export interface RiskInfo {
+  score: number
+  flags: string[]
+  explanations: string[]
+}
+
+export interface MedicineNote {
+  index: number
+  name: string
+  status: 'KNOWN' | 'POSSIBLE_TYPO' | 'UNKNOWN'
+  suggestion: string | null
+  generic: string | null
+  flags: string[]
+}
+
+export interface RiskCheck {
+  risk: RiskInfo
+  threshold: number
+  requires_override: boolean
+  medicines: MedicineNote[]
+  warnings: string[]
+  controlled: boolean
+}
+
+export interface Drug {
+  name: string
+  generic: string
+  is_brand: boolean
+}

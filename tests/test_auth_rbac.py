@@ -350,6 +350,8 @@ EXPECTED_ACCESS: dict[tuple[str, str], object] = {
     ("GET", "/api/patients/lookup"): {"doctor"},
     ("GET", "/api/keys/mine"): {"doctor"},
     ("POST", "/api/keys/rotate"): {"doctor"},
+    ("POST", "/api/prescriptions/risk-check"): {"doctor"},
+    ("GET", "/api/drugs"): {"doctor"},
     ("POST", "/api/verify/qr"): {"pharmacist"},
     ("POST", "/api/prescriptions/{rx_id}/dispense"): {"pharmacist"},
     ("GET", "/api/prescriptions/{rx_id}/pin"): {"patient"},

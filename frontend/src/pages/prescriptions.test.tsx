@@ -43,6 +43,18 @@ const RX: Prescription = {
   readable: true,
 }
 
+const DRUGS = [
+  { name: 'Amoxicillin', generic: 'Amoxicillin', is_brand: false },
+  { name: 'Dolo', generic: 'Paracetamol', is_brand: true },
+]
+const LOW_RISK = {
+  risk: { score: 0, flags: [], explanations: [] },
+  threshold: 60,
+  requires_override: false,
+  medicines: [{ index: 0, name: 'Amoxicillin', status: 'KNOWN', suggestion: null, generic: 'Amoxicillin', flags: [] }],
+  warnings: ['MODEL_UNAVAILABLE'],
+  controlled: false,
+}
 function json(status: number, body?: unknown) {
   return new Response(body === undefined ? null : JSON.stringify(body), { status })
 }
@@ -137,6 +149,8 @@ describe('NewPrescription', () => {
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       if (overrides[url]) return overrides[url](init)
       if (url === '/api/auth/me') return json(200, DOCTOR)
+      if (url === '/api/drugs') return json(200, DRUGS)
+      if (url === '/api/prescriptions/risk-check') return json(200, LOW_RISK)
       if (url.startsWith('/api/patients/lookup'))
         return json(200, { public_id: 'p1', name: 'Ravi Patel', patient_code: 'K7M2-Q9XD' })
       throw new Error(`unexpected ${init?.method ?? 'GET'} ${url}`)
@@ -308,6 +322,16 @@ describe('MyPrescriptions', () => {
     fetchMock.mockImplementation(async (url: string) => (url === '/api/auth/me' ? json(200, PATIENT) : json(200, [])))
     renderPage(<MyPrescriptions />)
     expect(await screen.findByText(/will appear here/)).toBeInTheDocument()
+  })
+
+  it('shows doctors a risk chip only for prescriptions that have a score', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      url === '/api/auth/me' ? json(200, DOCTOR) : json(200, [{ ...RX, id: 'a', risk_score: 75 }, { ...RX, id: 'b', risk_score: 15 }, { ...RX, id: 'c', risk_score: 0 }]),
+    )
+    renderPage(<MyPrescriptions />)
+    expect(await screen.findByText('Risk 75')).toBeInTheDocument()
+    expect(screen.getByText('Risk 15')).toBeInTheDocument()
+    expect(screen.queryByText('Risk 0')).not.toBeInTheDocument()
   })
 
   it('flags a record that failed its integrity check instead of showing its contents', async () => {

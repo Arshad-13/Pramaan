@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { PageHeader } from '@/components/PageHeader'
 import { PinRing } from '@/components/PinRing'
 import { RxStatusBadge } from '@/components/RxStatusBadge'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { api, ApiError } from '@/lib/api'
@@ -125,7 +126,12 @@ export default function MyPrescriptions() {
                     {rx.fills_used} of {rx.max_fills}
                   </td>
                   <td className="px-4 py-3">
-                    <RxStatusBadge status={rx.status} readable={rx.readable} />
+                    <div className="flex flex-col items-start gap-1.5">
+                      <RxStatusBadge status={rx.status} readable={rx.readable} />
+                      {isDoctor && rx.risk_score != null && rx.risk_score > 0 && (
+                        <Badge tone={rx.risk_score >= 60 ? 'warning' : 'neutral'}>Risk {rx.risk_score}</Badge>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex flex-wrap justify-end gap-2">

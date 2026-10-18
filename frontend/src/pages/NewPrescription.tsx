@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, FileDown, KeyRound, Loader2, Plus, Trash2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { Link } from 'react-router-dom'
 import { z } from 'zod'
@@ -10,13 +10,15 @@ import { describe } from '@/lib/aria'
 import { Field } from '@/components/Field'
 import { PageHeader } from '@/components/PageHeader'
 import { PatientPicker } from '@/components/PatientPicker'
+import { RiskPanel } from '@/components/RiskPanel'
 import { RxPreview } from '@/components/RxPreview'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api, ApiError } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
+import { useDebouncedValue } from '@/lib/hooks'
 import { MAX_MEDICINES, MAX_NOTES_CHARS, FREQUENCIES } from '@/lib/rx'
-import type { IssueResult, Medicine, PatientMatch } from '@/lib/types'
+import type { Drug, IssueResult, Medicine, PatientMatch, RiskCheck } from '@/lib/types'
 
 const num = (min: number, max: number, what: string) =>
   z
@@ -98,23 +100,78 @@ export default function NewPrescription() {
     [watched.medicines],
   )
 
+  // Live safety check: only rows that are complete enough to be scored, after a short pause.
+  const scorable = useMemo(() => {
+    const rows = previewMedicines
+      .map((m, index) => ({ m, index }))
+      .filter(({ m }) => m.name.trim().length >= 2 && m.dose_mg > 0 && m.duration_days > 0)
+    return rows.length ? { rows, max_fills: Number(watched.max_fills) || 1 } : null
+  }, [previewMedicines, watched.max_fills])
+  const debouncedScorable = useDebouncedValue(scorable, 400)
+  const { data: riskCheck } = useQuery({
+    queryKey: ['risk-check', debouncedScorable],
+    queryFn: () =>
+      api<RiskCheck>('/prescriptions/risk-check', {
+        method: 'POST',
+        body: { medicines: debouncedScorable!.rows.map((r) => r.m), max_fills: debouncedScorable!.max_fills },
+      }),
+    enabled: debouncedScorable !== null,
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  })
+  const { data: drugs } = useQuery({
+    queryKey: ['drugs'],
+    queryFn: () => api<Drug[]>('/drugs'),
+    staleTime: Infinity,
+  })
+
+  const [override, setOverride] = useState('')
+  const [overrideError, setOverrideError] = useState<string | null>(null)
+  const [serverAsked, setServerAsked] = useState(false)
+  const needsOverride = Boolean(riskCheck?.requires_override) || serverAsked
+
+  // Controlled medicines allow one fill only: reflect that in the form (and so in the preview).
+  const maxFills = Number(watched.max_fills)
+  useEffect(() => {
+    if (riskCheck?.controlled && maxFills > 1) setValue('max_fills', 1)
+  }, [riskCheck?.controlled, maxFills, setValue])
+
+  // Map a note (indexed within the scored rows) back to the form row it describes.
+  const noteFor = (rowIndex: number) => {
+    const position = debouncedScorable?.rows.findIndex((r) => r.index === rowIndex) ?? -1
+    return position >= 0 ? riskCheck?.medicines.find((n) => n.index === position) : undefined
+  }
+
   async function onSubmit(values: Values) {
     setFormError(null)
+    setOverrideError(null)
     if (!patient) {
       setPatientError('Choose a patient first.')
+      return
+    }
+    if (needsOverride && override.trim().length < 10) {
+      setOverrideError('Give a reason of at least 10 characters.')
       return
     }
     try {
       const result = await api<IssueResult>('/prescriptions', {
         method: 'POST',
-        body: { ...values, patient_id: patient.public_id },
+        body: {
+          ...values,
+          patient_id: patient.public_id,
+          override_reason: needsOverride ? override.trim() : undefined,
+        },
       })
       setValue('signing_password', '') // never keep the password around
       setIssued(result)
       void queryClient.invalidateQueries({ queryKey: ['prescriptions'] })
     } catch (error) {
       setValue('signing_password', '')
-      if (error instanceof ApiError && (error.status === 403 || error.status === 423)) {
+      const code = error instanceof ApiError ? (error.body as { code?: string } | null)?.code : undefined
+      if (code === 'RISK_CONFIRMATION_REQUIRED') {
+        setServerAsked(true)
+        setOverrideError('This prescription needs a reason before it can be signed.')
+      } else if (error instanceof ApiError && (error.status === 403 || error.status === 423)) {
         setError('signing_password', { message: error.message })
       } else {
         setFormError(error instanceof ApiError ? error.message : 'Something went wrong. Try again.')
@@ -155,6 +212,8 @@ export default function NewPrescription() {
               onClick={() => {
                 setIssued(null)
                 setPatient(null)
+                setOverride('')
+                setServerAsked(false)
                 reset()
               }}
             >
@@ -213,14 +272,27 @@ export default function NewPrescription() {
             <h2 id="meds-h" className="mb-3 text-sm font-semibold">
               Medicines
             </h2>
+            <datalist id="drug-list">
+              {drugs?.map((d) => (
+                <option key={d.name} value={d.name}>
+                  {d.is_brand ? `${d.generic} (brand)` : ''}
+                </option>
+              ))}
+            </datalist>
             <ul className="space-y-4">
               {fields.map((field, i) => {
                 const e = errors.medicines?.[i]
+                const note = noteFor(i)
                 return (
                   <li key={field.id} className="rounded-lg border border-border bg-surface p-4">
                     <div className="grid gap-3 sm:grid-cols-[1fr_6.5rem]">
                       <Field id={`m${i}-name`} label="Medicine" error={e?.name?.message}>
-                        <Input autoComplete="off" {...describe(`m${i}-name`, e?.name?.message)} {...register(`medicines.${i}.name`)} />
+                        <Input
+                          autoComplete="off"
+                          list="drug-list"
+                          {...describe(`m${i}-name`, e?.name?.message)}
+                          {...register(`medicines.${i}.name`)}
+                        />
                       </Field>
                       <Field id={`m${i}-dose`} label="Dose (mg)" error={e?.dose_mg?.message}>
                         <Input
@@ -257,6 +329,17 @@ export default function NewPrescription() {
                         </Button>
                       )}
                     </div>
+                    {note?.status === 'POSSIBLE_TYPO' && note.suggestion && (
+                      <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-warning">
+                        Did you mean <strong>{note.suggestion}</strong>?
+                        <Button type="button" size="sm" variant="outline" onClick={() => setValue(`medicines.${i}.name`, note.suggestion!, { shouldValidate: true })}>
+                          Use {note.suggestion}
+                        </Button>
+                      </p>
+                    )}
+                    {note?.status === 'UNKNOWN' && (
+                      <p className="mt-3 text-sm text-warning">This name is not in the drug list. You can still issue it with a reason.</p>
+                    )}
                   </li>
                 )
               })}
@@ -284,6 +367,17 @@ export default function NewPrescription() {
               </Field>
             </div>
           </section>
+
+          <RiskPanel
+            check={riskCheck}
+            forced={serverAsked}
+            override={override}
+            onOverride={(v) => {
+              setOverride(v)
+              setOverrideError(null)
+            }}
+            error={overrideError}
+          />
 
           <section aria-labelledby="sign-h" className="rounded-lg border border-border bg-surface-2 p-4">
             <h2 id="sign-h" className="flex items-center gap-2 text-sm font-semibold">

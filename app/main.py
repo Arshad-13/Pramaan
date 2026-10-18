@@ -91,7 +91,8 @@ def create_app(frontend_dist: Path = FRONTEND_DIST) -> FastAPI:
     @app.exception_handler(ServiceError)
     async def service_error_handler(_request: Request, exc: ServiceError) -> JSONResponse:
         headers = {"WWW-Authenticate": "Bearer"} if exc.status_code == 401 else None
-        return JSONResponse({"detail": exc.message}, status_code=exc.status_code, headers=headers)
+        body = {"detail": exc.message, **exc.extra}
+        return JSONResponse(body, status_code=exc.status_code, headers=headers)
 
     _mount_frontend(app, frontend_dist)
     return app

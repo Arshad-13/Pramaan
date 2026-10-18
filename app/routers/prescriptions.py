@@ -8,7 +8,16 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import require_role
 from app.models import Role, User
-from app.schemas import IssueIn, IssueOut, PatientLookupOut, PinOut, PrescriptionOut
+from app.schemas import (
+    DrugOut,
+    IssueIn,
+    IssueOut,
+    PatientLookupOut,
+    PinOut,
+    PrescriptionOut,
+    RiskCheckIn,
+    RiskCheckOut,
+)
 from app.services import prescription_service as rx
 
 router = APIRouter(tags=["prescriptions"])
@@ -21,6 +30,20 @@ PatientUser = Depends(require_role(Role.patient))
 @router.post("/prescriptions", response_model=IssueOut, status_code=201)
 def issue(data: IssueIn, doctor: User = DoctorUser, db: Session = Depends(get_db)) -> IssueOut:
     return rx.issue_prescription(db, doctor, data)
+
+
+@router.post("/prescriptions/risk-check", response_model=RiskCheckOut)
+def risk_check(
+    data: RiskCheckIn, doctor: User = DoctorUser, db: Session = Depends(get_db)
+) -> RiskCheckOut:
+    """Live check while the form is filled in: risk, hints for typos, and whether a reason is needed."""
+    return rx.risk_check(db, doctor, data)
+
+
+@router.get("/drugs", response_model=list[DrugOut])
+def drugs(_doctor: User = DoctorUser) -> list[DrugOut]:
+    """The drug list used for spelling checks and autosuggest."""
+    return rx.list_drugs()
 
 
 @router.get("/prescriptions/mine", response_model=list[PrescriptionOut])

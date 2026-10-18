@@ -685,9 +685,9 @@ Extraction (regex, no heavy NLP):
 Drug validation:
 - `data/drugs.csv`: columns `name, generic, is_brand` (generic names plus common Indian brands such as Dolo, Crocin, Augmentin). `scripts/build_drug_list.py` may pull from openFDA and must fall back to a bundled seed list of >= 100 names when offline.
 - `match_drug(name) -> (best_name, score, generic)`: **exact case-insensitive match first** (score 100). Otherwise `rapidfuzz.process.extractOne` with `fuzz.WRatio`, but names shorter than 5 characters never fuzzy-match (prevents "Pan" matching everything).
-  - `score >= 90` => known drug
-  - `75 <= score < 90` => `POSSIBLE_TYPO` (+points)
-  - `< 75` => `UNKNOWN_DRUG` (+many points)
+  - exact (after normalising away dosage-form words and strengths) => known drug
+  - **as built:** any non-exact name that is at least 75% similar (`fuzz.ratio`) => `POSSIBLE_TYPO` with the suggested spelling, because one changed letter can be a different drug; names under 5 characters are exact-only
+  - no close match => `UNKNOWN_DRUG`
 - `data/drug_reference.csv` columns: `name, max_single_dose_mg, max_daily_dose_mg, schedule` where `schedule` is `OTC`, `H`, `H1`, `X` (illustrative groupings inspired by India's Drugs and Cosmetics Rules; **not legal or clinical guidance**). Schedule H1 and X count as "controlled" for scoring.
 
 Seed examples (demo values only):
@@ -738,7 +738,7 @@ risk = min(100, rule_points + round(anomaly_score * 40))
 ```
 | Rule | Points |
 |---|---|
-| UNKNOWN_DRUG | +50 |
+| UNKNOWN_DRUG | +60 (equal to the review threshold, so a name not in the drug list always needs a second look) |
 | POSSIBLE_TYPO | +15 |
 | DOSE_ABOVE_SINGLE_MAX | +35 |
 | DOSE_ABOVE_DAILY_MAX | +35 |

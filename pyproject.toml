@@ -9,7 +9,7 @@ extend-exclude = ["frontend", ".venv"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S"]
-ignore = ["S101"]  # asserts are fine in tests
+ignore = ["S101", "E501"]  # asserts are fine in tests; line length is handled by black
 
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI's dependency-injection idiom puts Depends()/Query() in argument defaults.

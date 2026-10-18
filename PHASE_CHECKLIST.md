@@ -86,15 +86,17 @@ Extras done in P3: audit endpoints (`/admin/audit`, `verify`, `checkpoint`), `sc
 Built early in P5 because every prescription requires a patient PIN by default: `GET /prescriptions/{id}/pin`, PIN check and 3-wrong-PIN lock at dispense, patient PIN ring, PIN field on the dispense panel, and the POSSIBLE_REPLAY and FAILED_VERIFICATIONS alerts (so P9 only has the remaining alert rules). Verification is read-only; only dispense consumes a fill.
 
 ## P6: Rules-based risk (Sat 24) T0
-- [ ] `data/drugs.csv` (>= 100 names incl. Indian brands) and `drug_reference.csv` (>= 40 rows) (M3)
-- [ ] `drug_match.py`: exact first, length-guarded fuzzy, `UNKNOWN_DRUG` / `POSSIBLE_TYPO` (M3)
-- [ ] `dose_check`: single max, daily max, controlled schedule (M3)
-- [ ] `risk.py` rules-only, `MODEL_UNAVAILABLE` warning when no model (M3)
-- [ ] Issue flow: warning + required override reason; `RX_ISSUED_WITH_OVERRIDE` audit; no hard block (M2, M3)
-- [ ] Verify flow: stored issue-time score + new signals; SUSPICIOUS at threshold (M2, M3)
-- [ ] React: risk panel with explanations and override box (M4)
+- [x] `data/drugs.csv` (>= 100 names incl. Indian brands) and `drug_reference.csv` (>= 40 rows) (M3)
+- [x] `drug_match.py`: exact first, length-guarded fuzzy, `UNKNOWN_DRUG` / `POSSIBLE_TYPO` (M3)
+- [x] `dose_check`: single max, daily max, controlled schedule (M3)
+- [x] `risk.py` rules-only, `MODEL_UNAVAILABLE` warning when no model (M3)
+- [x] Issue flow: warning + required override reason; `RX_ISSUED_WITH_OVERRIDE` audit; no hard block (M2, M3)
+- [x] Verify flow: stored issue-time score + new signals; SUSPICIOUS at threshold (M2, M3)
+- [x] React: risk panel with explanations and override box (M4)
 
 **Done when:** fake drug => SUSPICIOUS; absurd dose => dose flags; short names never fuzzy-match.
+
+Also built: live `POST /prescriptions/risk-check` (typo hints, score, whether a reason is needed), `GET /drugs` for autosuggest, a RISK_OVERRIDE LOW security event for admins, and controlled medicines are limited to one fill. Not in this phase: drug-interaction rules (cut for the 13-day window), the anomaly term (Phase 8).
 
 ## P7: Upload verification, render-and-diff (Sat 24 spike, Sun 25 build) T1
 - [ ] **Spike go/no-go recorded by end of Sat 24** (rectify + diff on 10 sample photos); no-go => OCR-only fallback (M3)

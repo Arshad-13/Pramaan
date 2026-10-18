@@ -32,6 +32,7 @@ from typing import Any
 from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import Session
 
+from app.ai import risk as risk_mod
 from app.config import get_settings
 from app.core import audit, clock, crypto
 from app.core import pin as pin_mod
@@ -255,6 +256,22 @@ def evaluate(db: Session, qr_string: str) -> Evaluation:
 # --- verify -----------------------------------------------------------------
 
 
+def _risk_explanations(ev: Evaluation) -> list[str]:
+    """Why a prescription was flagged: the issue-time flags, explained from the signed content."""
+    if not ev.risk_flags or ev.payload is None:
+        return []
+    by_flag = risk_mod.assess(ev.payload["medicines"]).by_flag
+    messages: list[str] = []
+    for flag in ev.risk_flags:
+        if flag in by_flag:
+            messages.extend(by_flag[flag])
+        elif flag == "DOCTOR_BURST":
+            messages.append(
+                "Many prescriptions were issued from this doctor's account at that time."
+            )
+    return messages
+
+
 def _to_out(ev: Evaluation) -> VerifyOut:
     rx = ev.rx
     base: dict[str, Any] = {
@@ -270,7 +287,11 @@ def _to_out(ev: Evaluation) -> VerifyOut:
         return VerifyOut(**base)
     p = ev.payload
     base.update(
-        risk={"score": ev.risk_score, "flags": ev.risk_flags, "explanations": []},
+        risk={
+            "score": ev.risk_score,
+            "flags": ev.risk_flags,
+            "explanations": _risk_explanations(ev),
+        },
         doctor={"name": p["doctor"]["name"], "license_no": p["doctor"]["license_no"]},
         patient={"name": mask_name(p["patient"]["name"])},
         medicines=p["medicines"],

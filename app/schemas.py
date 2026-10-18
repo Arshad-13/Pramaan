@@ -324,3 +324,35 @@ class PinOut(BaseModel):
     pin: str
     seconds_remaining: int
     step_seconds: int
+
+
+# --- risk check and drug list (Phase 6) ----------------------------------------------------------------
+
+
+class RiskCheckIn(Strict):
+    medicines: Annotated[list[MedicineIn], Field(min_length=1, max_length=8)]
+    max_fills: Annotated[int, Field(ge=1, le=5)] = 1
+
+
+class MedicineNoteOut(BaseModel):
+    index: int
+    name: str
+    status: str  # KNOWN, POSSIBLE_TYPO or UNKNOWN
+    suggestion: str | None = None
+    generic: str | None = None
+    flags: list[str] = []
+
+
+class RiskCheckOut(BaseModel):
+    risk: RiskOut
+    threshold: int
+    requires_override: bool
+    medicines: list[MedicineNoteOut]
+    warnings: list[str]
+    controlled: bool = False
+
+
+class DrugOut(BaseModel):
+    name: str
+    generic: str
+    is_brand: bool

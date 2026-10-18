@@ -2,10 +2,13 @@
 
 export class ApiError extends Error {
   status: number
-  constructor(status: number, message: string) {
+  /** The parsed JSON error body, when there was one (for structured codes such as risk prompts). */
+  body: unknown
+  constructor(status: number, message: string, body: unknown = null) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.body = body
   }
 }
 
@@ -77,7 +80,7 @@ export async function api<T = void>(path: string, options: RequestOptions = {}):
   }
   if (!response.ok) {
     const detail = (data as { detail?: unknown } | null)?.detail
-    throw new ApiError(response.status, formatDetail(detail, `Request failed (${response.status})`))
+    throw new ApiError(response.status, formatDetail(detail, `Request failed (${response.status})`), data)
   }
   return data as T
 }
