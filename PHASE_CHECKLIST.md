@@ -17,7 +17,7 @@ Tiers: **T0** must ship, **T1** should ship, **T2** dropped for the 13-day windo
 - [x] `core/clock.py` with `FROZEN_TIME` support; no `datetime.now()` anywhere else (M2)
 - [x] DB engine: SQLite WAL, `busy_timeout`, `BEGIN IMMEDIATE` on writes; all models from Section 6 create tables (M2)
 - [x] `GET /api/health` returns 200 (M2)
-- [ ] GitHub Actions: ruff, black --check, bandit, pip-audit, pytest (M2) (workflow written; tick after the first green run)
+- [x] GitHub Actions: ruff, black --check, bandit, pip-audit, pytest (M2) (first run green on 82e3b87)
 - [x] Vite + React + TS app scaffolded; Tailwind v4, shadcn-style components (Radix + cva, owned in `src/components/ui`), fonts, design tokens (Section 13.1), app shell (M4)
 - [x] `requirements.lock` pinned from a clean venv (M2)
 
