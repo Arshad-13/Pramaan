@@ -24,12 +24,12 @@ Tiers: **T0** must ship, **T1** should ship, **T2** dropped for the 13-day windo
 **Done when:** app starts only with valid secrets; CI green; frontend shell renders in light and dark.
 
 ## P1: Crypto core (Sun 18 - Mon 19) T0
-- [ ] `canonical.py`: NFC normalisation, control/bidi rejection, canonical bytes, SHA-256 (M1)
-- [ ] `crypto.py`: ECDSA P-256 sign/verify with `PRAMAAN-RX-v2` context, raw 64-byte signatures (M1)
-- [ ] `keys.py`: keypair, `key_id`, PBKDF2 + AES-GCM private-key protection, wrong-password failure (M1)
-- [ ] Envelope encryption: DEK per prescription, AAD binding, KEK wrap with `kek_version` (M1)
-- [ ] `pin.py`: HMAC-based 6-digit PIN with time step (M1)
-- [ ] Tests (Section 7.5): round trip, bit flip, wrong key, wrong context, wrong password, GCM tamper, swapped AAD, canonical stability, hypothesis properties (M1)
+- [x] `canonical.py`: NFC normalisation, control/bidi rejection, canonical bytes, SHA-256 (M1)
+- [x] `crypto.py`: ECDSA P-256 sign/verify with `PRAMAAN-RX-v2` context, raw 64-byte signatures (M1)
+- [x] `keys.py`: keypair, `key_id`, PBKDF2 + AES-GCM private-key protection, wrong-password failure (M1)
+- [x] Envelope encryption: DEK per prescription, AAD binding, KEK wrap with `kek_version` (M1)
+- [x] `pin.py`: HMAC-based 6-digit PIN with time step (M1)
+- [x] Tests (Section 7.5): round trip, bit flip, wrong key, wrong context, wrong password, GCM tamper, swapped AAD, canonical stability, hypothesis properties (M1)
 
 **Done when:** all crypto tests green.
 
