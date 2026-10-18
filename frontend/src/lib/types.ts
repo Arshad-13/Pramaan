@@ -59,6 +59,7 @@ export interface Prescription {
   key_id: string
   fingerprint: string
   risk_score: number | null
+  require_pin: boolean
   readable: boolean
 }
 
@@ -77,4 +78,56 @@ export interface PatientMatch {
   public_id: string
   name: string
   patient_code: string | null
+}
+
+export type VerifyResultCode =
+  | 'VALID'
+  | 'TAMPERED'
+  | 'REVOKED'
+  | 'ALREADY_USED'
+  | 'EXPIRED'
+  | 'SUSPICIOUS'
+  | 'REVIEW_REQUIRED'
+  | 'NOT_FOUND'
+  | 'INVALID_QR'
+
+export interface VerifyChecks {
+  signature_valid: boolean | null
+  hash_match: boolean | null
+  key_state: string | null
+  doctor_active: boolean | null
+  status: string | null
+  fills_remaining: number | null
+  not_expired: boolean | null
+  content_check: string
+  file_integrity: string | null
+}
+
+export interface VerifyResult {
+  result: VerifyResultCode
+  reason_codes: string[]
+  rx_id: string | null
+  checks: VerifyChecks | null
+  risk: { score: number; flags: string[]; explanations: string[] } | null
+  warnings: string[]
+  doctor: { name: string; license_no: string } | null
+  patient: { name: string } | null
+  medicines: Medicine[] | null
+  issued_at: string | null
+  expires_at: string | null
+  can_dispense: boolean
+  pin_required: boolean
+}
+
+export interface DispenseResult {
+  rx_id: string
+  fill_no: number
+  fills_remaining: number
+  status: string
+}
+
+export interface PinInfo {
+  pin: string
+  seconds_remaining: number
+  step_seconds: number
 }

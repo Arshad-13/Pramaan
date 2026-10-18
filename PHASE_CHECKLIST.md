@@ -71,17 +71,19 @@ Extras done in P3: audit endpoints (`/admin/audit`, `verify`, `checkpoint`), `sc
 **Done when:** files on disk and `payload_enc` are ciphertext; owner can download; others get 404.
 
 ## P5: Verify (QR) and dispense (Thu 22 - Fri 23) T0
-- [ ] `verification_service` steps 2-7 and 9-11 (Section 10.2), response schema (10.4) (M2)
-- [ ] Signed-payload cross-checks (expiry, doctor, patient, `max_fills`) (M2)
-- [ ] `/verify/qr`; `verification_attempts` and audit entries (M2)
-- [ ] `/dispense` re-verifies inside one transaction; atomic fill update; `dispenses` `UNIQUE(rx_id, fill_no)` (M2)
-- [ ] Revoke vs dispense race handled by conditional UPDATE (M2)
-- [ ] Replay alert: other pharmacist verifies a DISPENSED rx (M2)
-- [ ] Tests: VALID, TAMPERED (hash, signature, DB column), NOT_FOUND, INVALID_QR, EXPIRED (frozen clock), ALREADY_USED, REVOKED, refills (M2)
-- [ ] Concurrency test: 20 threads give exactly one success per fill (M2)
-- [ ] React: Verify page with live camera scan, paste, verification timeline, seal, verified-record card (M4, M3)
+- [x] `verification_service` steps 2-7 and 9-11 (Section 10.2), response schema (10.4) (M2)
+- [x] Signed-payload cross-checks (expiry, doctor, patient, `max_fills`) (M2)
+- [x] `/verify/qr`; `verification_attempts` and audit entries (M2)
+- [x] `/dispense` re-verifies inside one transaction; atomic fill update; `dispenses` `UNIQUE(rx_id, fill_no)` (M2)
+- [x] Revoke vs dispense race handled by conditional UPDATE (M2)
+- [x] Replay alert: other pharmacist verifies a DISPENSED rx (M2)
+- [x] Tests: VALID, TAMPERED (hash, signature, DB column), NOT_FOUND, INVALID_QR, EXPIRED (frozen clock), ALREADY_USED, REVOKED, refills (M2)
+- [x] Concurrency test: 20 threads give exactly one success per fill (M2)
+- [x] React: Verify page with live camera scan, paste, verification timeline, seal, verified-record card (M4, M3)
 
 **Done when:** all of the above pass. **M1 milestone (Fri 23): issue -> verify -> dispense works end to end in the browser.**
+
+Built early in P5 because every prescription requires a patient PIN by default: `GET /prescriptions/{id}/pin`, PIN check and 3-wrong-PIN lock at dispense, patient PIN ring, PIN field on the dispense panel, and the POSSIBLE_REPLAY and FAILED_VERIFICATIONS alerts (so P9 only has the remaining alert rules). Verification is read-only; only dispense consumes a fill.
 
 ## P6: Rules-based risk (Sat 24) T0
 - [ ] `data/drugs.csv` (>= 100 names incl. Indian brands) and `drug_reference.csv` (>= 40 rows) (M3)
@@ -122,10 +124,10 @@ Extras done in P3: audit endpoints (`/admin/audit`, `verify`, `checkpoint`), `sc
 - [ ] slowapi limits: login 5/min per IP and account; verify 30/min per user (M2)
 - [ ] Upload validation, security headers, strict CSP, docs off unless `DEBUG` (M2)
 - [ ] All alert rules from Section 8.4 and `/admin/security-events` (M2)
-- [ ] Patient PIN: `/prescriptions/{id}/pin`, dispense requires PIN, 3-try lock (M1, M2)
+- [x] Patient PIN: `/prescriptions/{id}/pin`, dispense requires PIN, 3-try lock (M1, M2) (done in P5)
 - [ ] `scripts/rotate_master_key.py` re-wraps DEKs; PDFs still readable (M1)
 - [ ] bandit clean of high findings; pip-audit clean (M2)
-- [ ] React: PIN ring for patients, PIN field on dispense (M4)
+- [x] React: PIN ring for patients, PIN field on dispense (M4) (done in P5)
 
 **Done when:** 6th rapid login gets 429; 5 failed verifications create a HIGH event; PIN-less dispense of protected rx fails; KEK rotation keeps PDFs readable.
 

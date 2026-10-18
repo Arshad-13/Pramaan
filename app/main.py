@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import ConfigError, get_settings
 from app.db import init_db
 from app.errors import ServiceError
-from app.routers import admin, auth, keys, prescriptions
+from app.routers import admin, auth, keys, prescriptions, verify
 
 logger = logging.getLogger("pramaan")
 
@@ -46,6 +46,7 @@ def build_api_router() -> APIRouter:
     api.include_router(admin.router)
     api.include_router(keys.router)
     api.include_router(prescriptions.router)
+    api.include_router(verify.router)
     return api
 
 

@@ -39,6 +39,7 @@ const RX: Prescription = {
   key_id: '9a1c0e77b2d4f605',
   fingerprint: '9a1c 0e77 b2d4',
   risk_score: 0,
+  require_pin: true,
   readable: true,
 }
 

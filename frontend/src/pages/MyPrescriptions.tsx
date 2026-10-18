@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FileDown, FilePlus2 } from 'lucide-react'
-import { useState } from 'react'
+import { FileDown, FilePlus2, KeyRound } from 'lucide-react'
+import { Fragment, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/PageHeader'
+import { PinRing } from '@/components/PinRing'
 import { RxStatusBadge } from '@/components/RxStatusBadge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -38,6 +39,8 @@ export default function MyPrescriptions() {
   const isDoctor = user?.role === 'doctor'
   const queryClient = useQueryClient()
   const [confirming, setConfirming] = useState<string | null>(null)
+  const [pinFor, setPinFor] = useState<string | null>(null)
+  const isPatient = user?.role === 'patient'
 
   const { data, isPending, isError } = useQuery({
     queryKey: ['prescriptions', 'mine'],
@@ -97,7 +100,8 @@ export default function MyPrescriptions() {
             </thead>
             <tbody className="divide-y divide-border">
               {data.map((rx) => (
-                <tr key={rx.id} className="align-top">
+                <Fragment key={rx.id}>
+                <tr className="align-top">
                   <td className="whitespace-nowrap px-4 py-3">
                     {formatDate(rx.issued_at)}
                     <p className="text-xs text-muted-foreground">until {formatDate(rx.expires_at)}</p>
@@ -130,6 +134,11 @@ export default function MyPrescriptions() {
                           <FileDown aria-hidden="true" /> PDF
                         </a>
                       </Button>
+                      {isPatient && rx.status === 'ISSUED' && rx.require_pin && (
+                        <Button size="sm" variant="outline" aria-expanded={pinFor === rx.id} onClick={() => setPinFor(pinFor === rx.id ? null : rx.id)}>
+                          <KeyRound aria-hidden="true" /> {pinFor === rx.id ? 'Hide PIN' : 'Show PIN'}
+                        </Button>
+                      )}
                       {isDoctor &&
                         rx.status === 'ISSUED' &&
                         (confirming === rx.id ? (
@@ -149,6 +158,14 @@ export default function MyPrescriptions() {
                     </div>
                   </td>
                 </tr>
+                {pinFor === rx.id && (
+                  <tr className="bg-surface-2">
+                    <td colSpan={6} className="px-4 py-4">
+                      <PinRing rxId={rx.id} />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

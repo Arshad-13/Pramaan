@@ -27,12 +27,13 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.core import audit, clock, crypto
 from app.core import payload as payload_mod
+from app.core import pin as pin_mod
 from app.core.canonical import canonical_bytes, sha256_hex
 from app.core.pdf import render_prescription_pdf
 from app.core.qr import build_qr, new_rx_id
 from app.errors import BadRequest, Conflict, NotFound
 from app.models import ApprovalStatus, Prescription, Role, RxStatus, User
-from app.schemas import IssueIn, IssueOut, MedicineOut, PrescriptionOut, RiskOut
+from app.schemas import IssueIn, IssueOut, MedicineOut, PinOut, PrescriptionOut, RiskOut
 from app.services import key_service
 
 
@@ -209,6 +210,7 @@ def summarise(row: Prescription, viewer: User) -> PrescriptionOut:
         key_id=row.key_id,
         fingerprint=payload_mod.fingerprint(row.payload_hash),
         risk_score=row.risk_score if viewer.role == Role.doctor else None,
+        require_pin=row.require_pin,
     )
     try:
         p = _decrypt_payload(row)
@@ -297,3 +299,28 @@ def lookup_patient(db: Session, *, email: str | None, code: str | None) -> User:
     if patient is None:
         raise NotFound("No patient found with those details.")
     return patient
+
+
+# --- patient dispense PIN ---------------------------------------------------------------
+
+
+def get_pin(db: Session, patient: User, rx_id: str) -> PinOut:
+    """The patient's current dispense PIN for one of their own, still-usable prescriptions."""
+    row = get_owned(db, patient, rx_id)
+    if not row.require_pin or row.redeem_secret_wrapped is None:
+        raise NotFound("This prescription does not use a PIN.")
+    if display_status(row) != "ISSUED":
+        raise Conflict("This prescription can no longer be dispensed.")
+    settings = get_settings()
+    kek, _ = _kek()
+    secret = crypto.unwrap_key(
+        kek, row.redeem_secret_wrapped, rx_id=row.id, kek_version=row.kek_version, purpose=b"redeem"
+    )
+    now = clock.now_utc()
+    audit.append(db, patient.id, patient.role.value, "RX_PIN_VIEWED", row.id, {})
+    db.commit()
+    return PinOut(
+        pin=pin_mod.current_pin(secret, row.id, now, settings.pin_step_seconds),
+        seconds_remaining=pin_mod.seconds_remaining(now, settings.pin_step_seconds),
+        step_seconds=settings.pin_step_seconds,
+    )

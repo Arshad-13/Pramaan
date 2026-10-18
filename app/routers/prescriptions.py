@@ -8,13 +8,14 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import require_role
 from app.models import Role, User
-from app.schemas import IssueIn, IssueOut, PatientLookupOut, PrescriptionOut
+from app.schemas import IssueIn, IssueOut, PatientLookupOut, PinOut, PrescriptionOut
 from app.services import prescription_service as rx
 
 router = APIRouter(tags=["prescriptions"])
 
 DoctorUser = Depends(require_role(Role.doctor))
 DoctorOrPatient = Depends(require_role(Role.doctor, Role.patient))
+PatientUser = Depends(require_role(Role.patient))
 
 
 @router.post("/prescriptions", response_model=IssueOut, status_code=201)
@@ -41,6 +42,11 @@ def download_pdf(
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+@router.get("/prescriptions/{rx_id}/pin", response_model=PinOut)
+def pin(rx_id: str, patient: User = PatientUser, db: Session = Depends(get_db)) -> PinOut:
+    return rx.get_pin(db, patient, rx_id)
 
 
 @router.post("/prescriptions/{rx_id}/revoke", response_model=PrescriptionOut)

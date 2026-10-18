@@ -233,6 +233,7 @@ class PrescriptionOut(BaseModel):
     key_id: str
     fingerprint: str
     risk_score: int | None = None  # visible to the issuing doctor only
+    require_pin: bool = True
     readable: bool = True  # False if the stored record failed its integrity check
 
 
@@ -255,3 +256,71 @@ class PatientLookupOut(BaseModel):
     public_id: str
     name: str
     patient_code: str | None
+
+
+# --- verification and dispensing (Phase 5) ---------------------------------------------
+
+VerifyResult = Literal[
+    "VALID", "TAMPERED", "REVOKED", "ALREADY_USED", "EXPIRED", "SUSPICIOUS",
+    "REVIEW_REQUIRED", "NOT_FOUND", "INVALID_QR",
+]  # fmt: skip
+
+
+class VerifyQRIn(Strict):
+    qr_string: Annotated[str, Field(min_length=1, max_length=400)]
+
+
+class ChecksOut(BaseModel):
+    signature_valid: bool | None = None
+    hash_match: bool | None = None
+    key_state: str | None = None
+    doctor_active: bool | None = None
+    status: str | None = None
+    fills_remaining: int | None = None
+    not_expired: bool | None = None
+    content_check: str = "NOT_CHECKED"
+    file_integrity: str | None = None
+
+
+class VerifiedDoctor(BaseModel):
+    name: str
+    license_no: str
+
+
+class VerifiedPatient(BaseModel):
+    name: str  # masked: initial + surname
+
+
+class VerifyOut(BaseModel):
+    result: VerifyResult
+    reason_codes: list[str]
+    rx_id: str | None = None
+    checks: ChecksOut | None = None
+    risk: RiskOut | None = None
+    warnings: list[str] = []
+    doctor: VerifiedDoctor | None = None
+    patient: VerifiedPatient | None = None
+    medicines: list[MedicineOut] | None = None
+    issued_at: str | None = None
+    expires_at: str | None = None
+    can_dispense: bool = False
+    pin_required: bool = False
+
+
+class DispenseIn(Strict):
+    qr_string: Annotated[str, Field(min_length=1, max_length=400)]
+    patient_pin: Annotated[str, Field(min_length=1, max_length=12)] | None = None
+    patient_identity_checked: bool = False
+
+
+class DispenseOut(BaseModel):
+    rx_id: str
+    fill_no: int
+    fills_remaining: int
+    status: str
+
+
+class PinOut(BaseModel):
+    pin: str
+    seconds_remaining: int
+    step_seconds: int

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ScanLine, ScrollText } from 'lucide-react'
+import { ScrollText } from 'lucide-react'
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Toaster } from 'sonner'
@@ -18,6 +18,7 @@ const Admin = lazy(() => import('@/pages/Admin'))
 const DesignSystem = lazy(() => import('@/pages/DesignSystem'))
 const NewPrescription = lazy(() => import('@/pages/NewPrescription'))
 const MyPrescriptions = lazy(() => import('@/pages/MyPrescriptions'))
+const Verify = lazy(() => import('@/pages/Verify'))
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 10_000, refetchOnWindowFocus: false } },
@@ -61,12 +62,7 @@ export default function App() {
                 path="verify"
                 element={
                   <RequireAuth roles={['pharmacist']}>
-                    <Placeholder
-                      title="Verify"
-                      icon={ScanLine}
-                      phase="Phase 5"
-                      description="Scan a prescription's QR code, upload a photo or PDF, or paste the code. You get a verdict and the evidence behind it."
-                    />
+                    <Verify />
                   </RequireAuth>
                 }
               />

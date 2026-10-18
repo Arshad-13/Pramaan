@@ -16,7 +16,7 @@ ignore = ["S101"]  # asserts are fine in tests
 extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S105", "S106", "S608"]  # fake secrets; raw SQL playing the attacker
+"tests/*" = ["S105", "S106", "S608", "E501"]  # fake secrets; raw SQL playing the attacker
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
