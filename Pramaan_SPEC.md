@@ -103,7 +103,7 @@ If time runs short, cut from the bottom. **Never cut Tier 0.**
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Language | **Python 3.12** | This machine's default `python` is 3.14, which many ONNX/OpenCV wheels do not support yet. Always create the venv with `py -3.12 -m venv .venv` |
+| Language | **Python 3.11** | Create the venv with `py -3.11 -m venv .venv`. Not 3.14 (the default `python` on the dev machine): many ONNX/OpenCV wheels do not support it yet. 3.12 is listed by `py -0p` there but is not actually installed |
 | Backend | FastAPI + Uvicorn | Pydantic v2 |
 | DB | SQLite via SQLAlchemy 2.x | WAL mode, `busy_timeout`, `BEGIN IMMEDIATE` for writes (Section 9) |
 | Crypto | `cryptography` | ECDSA, AES-GCM, PBKDF2, HMAC, SHA-256 |
@@ -842,9 +842,10 @@ Streamlit was dropped: it cannot deliver a sharp, premium, fully controlled UI o
 ### 13.1 Design direction ("a seal of proof")
 The brand idea is *proof*: official, calm, exact. The product should feel like a modern certificate authority crossed with a clinical instrument, not a dashboard template.
 
-- **Palette:** warm paper off-white background (`#F7F5F0`-ish) and deep ink navy for text in light mode; near-black blue-grey surfaces in dark mode. One signature accent (a deep teal-emerald) reserved for *verified* states. Semantic colours: red = tampered/revoked, amber = caution, never used decoratively. No purple-gradient defaults, no glassmorphism.
-- **Typography:** large serif display headings (certificate feel), tight sans for UI, mono with tabular figures for hashes, IDs and PINs. Hashes are shown in grouped chunks (`9a1c 0e77 b2d4 f605`).
-- **Shape and depth:** sharp 6-8 px radii, 1 px hairline borders instead of heavy shadows, generous whitespace, dense but readable tables. A faint paper/grain texture and a thin guilloche-style line pattern on the verification result card as the memorable detail.
+- **Palette (as built, OKLCH tokens in `frontend/src/index.css`):** white surfaces on a cool near-white canvas (a hair of chroma toward the ink hue, not warm, to avoid the cream/paper cliche), deep ink navy for text and primary actions; dark theme uses near-black blue-grey. One signature accent (deep teal-green) reserved for *verified* states. Semantic colours: red = tampered/revoked/not found/invalid QR, amber = caution, never decorative. No gradients, no glassmorphism. Restrained colour strategy: accent only on state and primary actions.
+- **Typography (as built):** Inter Variable for all UI text; Source Serif 4 Variable for page titles, the brand wordmark and verdict headings only (never labels or buttons); JetBrains Mono Variable with tabular figures for hashes, IDs and PINs. Fixed rem scale (about 1.2 ratio), no fluid type. Hashes shown in grouped chunks (`9a1c 0e77 b2d4 f605`).
+- **Shape and depth:** 4/6/8 px radii, 1 px hairline borders instead of heavy shadows, a second neutral layer for sidebar and wells, dense but readable tables. The verdict **seal** (stamped ring with edge ticks) is the memorable detail; it is reused as a large low-opacity watermark on the sign-in brand panel.
+- **Motion (product register):** 150-250 ms transitions that convey state only, no orchestrated page-load sequences; the seal ring draws once when a verdict arrives; `prefers-reduced-motion` shows final states instantly. Design context lives in `PRODUCT.md`.
 - **Signature moments (build these first):**
   1. **Verification theatre:** after a scan, the pipeline steps (QR parsed, hash match, signature, key state, status, content, risk) tick off one by one with a short stagger, then the **seal** (animated ring + icon) settles into the final verdict. Reduced-motion users get the final state instantly.
   2. **Tamper overlay:** the uploaded image with a red box on the altered cell and callouts "Signed 500 mg / Document reads 800 mg".
@@ -1171,4 +1172,4 @@ State these honestly in the deck.
 
 **Plugins / hooks:** none required. Optionally add a pre-commit hook (via `update-config`) that runs `ruff`, `black --check` and a secret scan so keys are never committed.
 
-**Environment already verified (18 Oct 2026):** Python 3.12 available via `py -3.12` (default `python` is 3.14, do not use it), Node 24, git 2.51. Create the venv with `py -3.12 -m venv .venv`.
+**Environment verified (18 Oct 2026):** Python 3.11.9 (venv: `py -3.11 -m venv .venv`; do not use the default 3.14), Node 24, git 2.51.

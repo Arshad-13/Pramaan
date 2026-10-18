@@ -1,0 +1,9 @@
+-r requirements.txt
+pytest
+pytest-cov
+httpx
+hypothesis
+ruff
+black
+bandit
+pip-audit

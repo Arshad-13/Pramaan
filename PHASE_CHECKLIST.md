@@ -10,16 +10,16 @@ Tiers: **T0** must ship, **T1** should ship, **T2** dropped for the 13-day windo
 ---
 
 ## P0: Skeleton, CI, config (Sun 18 - Mon 19) T0
-- [ ] Repo layout from Section 5 created; `py -3.12 -m venv .venv` works (M2)
-- [ ] `requirements.txt`, `requirements-dev.txt`, `.env.example`, `.gitignore` committed (M2)
-- [ ] `config.py` refuses to start with missing/placeholder `SECRET_KEY`, `MASTER_KEY`, `AUDIT_KEY` or missing audit signing key (M2)
-- [ ] `scripts/gen_keys.py` writes `.env` and `secrets/` (git-ignored) (M2)
-- [ ] `core/clock.py` with `FROZEN_TIME` support; no `datetime.now()` anywhere else (M2)
-- [ ] DB engine: SQLite WAL, `busy_timeout`, `BEGIN IMMEDIATE` on writes; all models from Section 6 create tables (M2)
-- [ ] `GET /api/health` returns 200 (M2)
-- [ ] GitHub Actions: ruff, black --check, bandit, pip-audit, pytest (M2)
-- [ ] Vite + React + TS app scaffolded; Tailwind v4, shadcn/ui, fonts, design tokens (Section 13.1), app shell (M4)
-- [ ] `requirements.lock` pinned from a clean venv (M2)
+- [x] Repo layout from Section 5 created; `py -3.11 -m venv .venv` works (M2)
+- [x] `requirements.txt`, `requirements-dev.txt`, `.env.example`, `.gitignore` committed (M2)
+- [x] `config.py` refuses to start with missing/placeholder `SECRET_KEY`, `MASTER_KEY`, `AUDIT_KEY` or missing audit signing key (M2)
+- [x] `scripts/gen_keys.py` writes `.env` and `secrets/` (git-ignored) (M2)
+- [x] `core/clock.py` with `FROZEN_TIME` support; no `datetime.now()` anywhere else (M2)
+- [x] DB engine: SQLite WAL, `busy_timeout`, `BEGIN IMMEDIATE` on writes; all models from Section 6 create tables (M2)
+- [x] `GET /api/health` returns 200 (M2)
+- [ ] GitHub Actions: ruff, black --check, bandit, pip-audit, pytest (M2) (workflow written; tick after the first green run)
+- [x] Vite + React + TS app scaffolded; Tailwind v4, shadcn-style components (Radix + cva, owned in `src/components/ui`), fonts, design tokens (Section 13.1), app shell (M4)
+- [x] `requirements.lock` pinned from a clean venv (M2)
 
 **Done when:** app starts only with valid secrets; CI green; frontend shell renders in light and dark.
 

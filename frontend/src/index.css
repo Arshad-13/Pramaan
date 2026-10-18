@@ -1,0 +1,182 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/source-serif-4";
+@import "@fontsource-variable/jetbrains-mono";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Pramaan design tokens ("a seal of proof").
+ * Mood: a notary's desk in daylight. Clean ink on white; one stamped seal.
+ * Strategy: Restrained. Ink-navy carries structure and primary actions; the teal-green
+ * "verified" colour is reserved for verified states only. Red = tampered/revoked,
+ * amber = caution. Status is never colour alone (icon + text always accompany it).
+ * Neutrals are tinted a hair toward the ink hue (258), not toward warm.
+ */
+:root {
+  color-scheme: light;
+
+  --background: oklch(0.975 0.005 255); /* app canvas */
+  --surface: oklch(1 0 0); /* panels, inputs */
+  --surface-2: oklch(0.955 0.007 255); /* sidebar, wells, table heads */
+  --foreground: oklch(0.24 0.045 258);
+  --muted-foreground: oklch(0.45 0.035 258);
+  --border: oklch(0.9 0.008 255); /* hairline */
+  --border-strong: oklch(0.8 0.014 255);
+  --ring: oklch(0.52 0.12 168);
+
+  --primary: oklch(0.28 0.06 258); /* ink: primary actions, structure */
+  --primary-foreground: oklch(0.985 0.003 255);
+  --primary-hover: oklch(0.34 0.065 258);
+
+  --verified: oklch(0.45 0.11 168); /* text/icons on light surfaces */
+  --verified-solid: oklch(0.56 0.125 166); /* seal ring, fills */
+  --verified-soft: oklch(0.96 0.03 168);
+  --verified-border: oklch(0.84 0.065 168);
+
+  --danger: oklch(0.5 0.19 25);
+  --danger-solid: oklch(0.58 0.205 25);
+  --danger-soft: oklch(0.96 0.025 25);
+  --danger-border: oklch(0.86 0.07 25);
+
+  --warning: oklch(0.46 0.1 65);
+  --warning-solid: oklch(0.7 0.15 70);
+  --warning-soft: oklch(0.965 0.04 85);
+  --warning-border: oklch(0.86 0.09 80);
+
+  /* Semantic z-index scale (no arbitrary values) */
+  --z-sticky: 20;
+  --z-dropdown: 30;
+  --z-modal-backdrop: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+  --z-tooltip: 70;
+
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --background: oklch(0.16 0.02 258);
+  --surface: oklch(0.205 0.025 258);
+  --surface-2: oklch(0.18 0.022 258);
+  --foreground: oklch(0.95 0.008 255);
+  --muted-foreground: oklch(0.72 0.02 255);
+  --border: oklch(0.29 0.025 258);
+  --border-strong: oklch(0.38 0.03 258);
+  --ring: oklch(0.78 0.13 165);
+
+  --primary: oklch(0.93 0.01 255);
+  --primary-foreground: oklch(0.22 0.045 258);
+  --primary-hover: oklch(0.86 0.012 255);
+
+  --verified: oklch(0.8 0.13 165);
+  --verified-solid: oklch(0.72 0.14 165);
+  --verified-soft: oklch(0.27 0.045 168);
+  --verified-border: oklch(0.4 0.07 168);
+
+  --danger: oklch(0.76 0.15 25);
+  --danger-solid: oklch(0.68 0.19 25);
+  --danger-soft: oklch(0.27 0.06 25);
+  --danger-border: oklch(0.42 0.1 25);
+
+  --warning: oklch(0.82 0.12 80);
+  --warning-solid: oklch(0.78 0.14 80);
+  --warning-soft: oklch(0.28 0.05 80);
+  --warning-border: oklch(0.44 0.08 80);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-verified: var(--verified);
+  --color-verified-solid: var(--verified-solid);
+  --color-verified-soft: var(--verified-soft);
+  --color-verified-border: var(--verified-border);
+  --color-danger: var(--danger);
+  --color-danger-solid: var(--danger-solid);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-border: var(--danger-border);
+  --color-warning: var(--warning);
+  --color-warning-solid: var(--warning-solid);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-border: var(--warning-border);
+
+  /* One UI sans; serif is for page titles and verdicts only; mono for hashes, IDs, PINs. */
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Source Serif 4 Variable", ui-serif, Georgia, serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Mono", monospace;
+
+  /* Fixed rem scale, ratio ~1.2 (product UI: no fluid type) */
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.5;
+    font-feature-settings: "cv11", "ss03";
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--verified-solid) 30%, transparent);
+  }
+}
+
+/* Reduced motion: no transitions or animation; final states appear instantly. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
