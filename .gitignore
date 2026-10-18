@@ -1,0 +1,32 @@
+# Secrets and local config
+.env
+secrets/
+
+# Data and runtime
+*.db
+*.db-wal
+*.db-shm
+storage/
+data/models/*.joblib
+data/models/*.sig
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Frontend
+node_modules/
+frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
