@@ -46,6 +46,27 @@ os.environ.update(TEST_ENV)
 
 
 @pytest.fixture(autouse=True)
+def _reset_anchor_file():
+    """Anchors are an append-only file outside the DB; each test starts with an empty one."""
+    Path(TEST_ENV["ANCHOR_FILE"]).unlink(missing_ok=True)
+    yield
+
+
+@pytest.fixture
+def fresh_db():
+    """Empty schema for API-level tests. Tests should talk to the app through the client and use
+    short-lived sessions (see tests/helpers.py): a session left open would hold SQLite's write lock.
+    """
+    from app import models
+    from app.db import get_engine
+
+    engine = get_engine()
+    models.Base.metadata.drop_all(engine)
+    models.Base.metadata.create_all(engine)
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _reset_clock():
     from app.core import clock
 

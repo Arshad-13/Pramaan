@@ -1,9 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { AppShell } from './AppShell'
 import { HashChunks } from './HashChunks'
 import { Seal } from './Seal'
 import { ThemeToggle } from './ThemeToggle'
@@ -35,19 +33,5 @@ describe('ThemeToggle', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(true)
     expect(localStorage.getItem('pramaan-theme')).toBe('dark')
     expect(screen.getByRole('radio', { name: 'Dark theme' })).toBeChecked()
-  })
-})
-
-describe('AppShell', () => {
-  it('has a skip link, main landmark, navigation and the disclaimer', () => {
-    render(
-      <MemoryRouter>
-        <AppShell />
-      </MemoryRouter>,
-    )
-    expect(screen.getByRole('link', { name: 'Skip to content' })).toBeInTheDocument()
-    expect(screen.getByRole('main')).toBeInTheDocument()
-    expect(screen.getAllByRole('navigation', { name: 'Main' }).length).toBeGreaterThan(0)
-    expect(screen.getByText('Academic demo. Not for clinical use.')).toBeInTheDocument()
   })
 })

@@ -835,7 +835,7 @@ Streamlit was dropped: it cannot deliver a sharp, premium, fully controlled UI o
 
 **Session security (replaces bearer tokens in the browser):**
 - Login sets the JWT in an `HttpOnly`, `SameSite=Strict` cookie (`Secure` when TLS is on). JavaScript never sees it, so XSS cannot steal it.
-- CSRF defence: double-submit token. A readable `csrf` cookie is echoed in an `X-CSRF-Token` header on every state-changing request; FastAPI rejects mismatches. `Authorization: Bearer` is still accepted for scripts and tests (attack suite).
+- CSRF defence: double-submit token. A readable `csrf` cookie is echoed in an `X-CSRF-Token` header on every state-changing request; FastAPI rejects mismatches. `Authorization: Bearer` is still accepted for scripts and tests (attack suite). As built, the token is an HMAC of the session id (`jti`) that the server recomputes and compares, so it cannot be forged or planted from another origin and needs no storage.
 - Strict CSP from FastAPI: `default-src 'self'; script-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'` (inline styles only because of animation libraries).
 - No `dangerouslySetInnerHTML`; all user text is rendered through React's escaping. Uploaded images are shown via `blob:` URLs only.
 - Because the browser now talks to FastAPI directly, the server sees the real client IP, so the proxy-header plumbing from v2 is not needed.

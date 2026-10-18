@@ -12,12 +12,14 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import ConfigError, get_settings
 from app.db import init_db
+from app.errors import ServiceError
+from app.routers import admin, auth
 
 logger = logging.getLogger("pramaan")
 
@@ -31,13 +33,18 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-api = APIRouter(prefix="/api")
+def build_api_router() -> APIRouter:
+    """A fresh /api router per app instance (so repeated create_app() calls never share state)."""
+    api = APIRouter(prefix="/api")
 
+    @api.get("/health")
+    def health() -> dict[str, str]:
+        """Liveness only. Deliberately returns no version, path or config details."""
+        return {"status": "ok"}
 
-@api.get("/health")
-def health() -> dict[str, str]:
-    """Liveness only. Deliberately returns no version, path or config details."""
-    return {"status": "ok"}
+    api.include_router(auth.router)
+    api.include_router(admin.router)
+    return api
 
 
 def _mount_frontend(app: FastAPI, dist: Path) -> None:
@@ -76,7 +83,13 @@ def create_app(frontend_dist: Path = FRONTEND_DIST) -> FastAPI:
         redoc_url=None,
         openapi_url="/api/openapi.json" if settings.debug else None,
     )
-    app.include_router(api)
+    app.include_router(build_api_router())
+
+    @app.exception_handler(ServiceError)
+    async def service_error_handler(_request: Request, exc: ServiceError) -> JSONResponse:
+        headers = {"WWW-Authenticate": "Bearer"} if exc.status_code == 401 else None
+        return JSONResponse({"detail": exc.message}, status_code=exc.status_code, headers=headers)
+
     _mount_frontend(app, frontend_dist)
     return app
 

@@ -4,11 +4,21 @@ import { CircleCheck, CircleX } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useAuth } from '@/lib/auth'
+import { ROLE_LABEL, type Role } from '@/lib/types'
 
 async function fetchHealth(): Promise<{ status: string }> {
   const response = await fetch('/api/health', { headers: { Accept: 'application/json' } })
   if (!response.ok) throw new Error(`health ${response.status}`)
   return response.json()
+}
+
+const ROLE_HINT: Record<Role, string> = {
+  doctor: 'Issue signed prescriptions and see their status.',
+  patient: 'See your prescriptions and the code to show at the pharmacy.',
+  pharmacist: 'Scan a prescription to check it and dispense.',
+  admin: 'Approve pharmacists, create doctor accounts and manage access.',
+  auditor: 'Review the audit log and check that it has not been altered.',
 }
 
 function ServiceStatus() {
@@ -35,27 +45,43 @@ function ServiceStatus() {
 }
 
 export default function Dashboard() {
+  const { user } = useAuth()
+  const firstName = user?.name.split(' ')[0]
   return (
     <>
       <PageHeader
-        title="Overview"
-        description="Doctors issue signed prescriptions. Pharmacists verify them. Every decision is recorded in a tamper-evident log."
+        title={firstName ? `Welcome, ${firstName}` : 'Overview'}
+        description={user ? ROLE_HINT[user.role] : undefined}
       />
-      <section aria-labelledby="service-heading" className="max-w-xl rounded-lg border border-border bg-surface">
-        <h2 id="service-heading" className="border-b border-border px-5 py-3 text-sm font-semibold">
-          Service
+      <section aria-labelledby="account-heading" className="max-w-xl rounded-lg border border-border bg-surface">
+        <h2 id="account-heading" className="border-b border-border px-5 py-3 text-sm font-semibold">
+          Your account
         </h2>
         <dl className="divide-y divide-border text-sm">
-          <div className="flex items-center justify-between px-5 py-3">
-            <dt className="text-muted-foreground">API</dt>
+          <div className="flex items-center justify-between gap-4 px-5 py-3">
+            <dt className="text-muted-foreground">Role</dt>
+            <dd>{user ? ROLE_LABEL[user.role] : ''}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-4 px-5 py-3">
+            <dt className="text-muted-foreground">Email</dt>
+            <dd className="truncate">{user?.email}</dd>
+          </div>
+          {user?.patient_code && (
+            <div className="flex items-center justify-between gap-4 px-5 py-3">
+              <dt className="text-muted-foreground">Patient code</dt>
+              <dd className="font-mono tracking-wide">{user.patient_code}</dd>
+            </div>
+          )}
+          {user?.license_no && (
+            <div className="flex items-center justify-between gap-4 px-5 py-3">
+              <dt className="text-muted-foreground">Licence number</dt>
+              <dd>{user.license_no}</dd>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-4 px-5 py-3">
+            <dt className="text-muted-foreground">Service</dt>
             <dd aria-live="polite">
               <ServiceStatus />
-            </dd>
-          </div>
-          <div className="flex items-center justify-between px-5 py-3">
-            <dt className="text-muted-foreground">Sign-in</dt>
-            <dd>
-              <Badge>Available after Phase 3</Badge>
             </dd>
           </div>
         </dl>

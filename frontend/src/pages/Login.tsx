@@ -1,92 +1,110 @@
-import { Eye, EyeOff } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
-import { toast } from 'sonner'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { z } from 'zod'
 
-import { Logo } from '@/components/Logo'
-import { Seal } from '@/components/Seal'
+import { AuthLayout } from '@/components/AuthLayout'
+import { Field } from '@/components/Field'
+import { describe } from '@/lib/aria'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { ApiError } from '@/lib/api'
+import { useAuth } from '@/lib/auth'
+
+const schema = z.object({
+  email: z.string().min(1, 'Enter your email address.'),
+  password: z.string().min(1, 'Enter your password.'),
+})
+type Values = z.infer<typeof schema>
 
 export default function Login() {
+  const { user, signIn } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const state = location.state as { from?: string; notice?: string } | null
   const [show, setShow] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
-  function onSubmit(event: FormEvent) {
-    event.preventDefault()
-    // Authentication is wired to the API in Phase 3.
-    toast('Sign-in is connected in Phase 3.')
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<Values>({ resolver: zodResolver(schema) })
+
+  if (user) return <Navigate to={state?.from ?? '/'} replace />
+
+  async function onSubmit(values: Values) {
+    setFormError(null)
+    try {
+      await signIn(values.email, values.password)
+      navigate(state?.from ?? '/', { replace: true })
+    } catch (error) {
+      setFormError(error instanceof ApiError ? error.message : 'Something went wrong. Try again.')
+    }
   }
 
   return (
-    <div className="grid min-h-dvh lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-      <aside className="relative hidden overflow-hidden bg-[oklch(0.2_0.05_258)] p-12 text-[oklch(0.96_0.006_255)] lg:flex lg:flex-col">
-        <div aria-hidden="true" className="absolute -bottom-24 -right-24 opacity-[0.14]">
-          <Seal verdict="VALID" size={520} />
-        </div>
-        <Logo inverted />
-        <div className="mt-auto max-w-md">
-          <h2 className="font-serif text-3xl font-semibold leading-tight">
-            Every prescription carries proof of who issued it, and that it was never altered.
-          </h2>
-          <p className="mt-4 text-[oklch(0.82_0.02_255)]">
-            Pramaan (प्रमाण) means proof. Signed by the doctor, checked by the pharmacist, recorded
-            in a log nobody can quietly rewrite.
+    <AuthLayout title="Sign in" description="Use the account your administrator or pharmacy set up.">
+      {state?.notice && (
+        <p role="status" className="mb-5 rounded-md border border-verified-border bg-verified-soft px-3 py-2 text-sm text-verified">
+          {state.notice}
+        </p>
+      )}
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5" noValidate>
+        <Field id="email" label="Email" error={errors.email?.message}>
+          <Input
+            type="email"
+            autoComplete="username"
+            {...describe('email', errors.email?.message)}
+            {...register('email')}
+          />
+        </Field>
+        <Field id="password" label="Password" error={errors.password?.message}>
+          <div className="relative">
+            <Input
+              type={show ? 'text' : 'password'}
+              autoComplete="current-password"
+              className="pr-11"
+              {...describe('password', errors.password?.message)}
+              {...register('password')}
+            />
+            <button
+              type="button"
+              aria-label={show ? 'Hide password' : 'Show password'}
+              aria-pressed={show}
+              onClick={() => setShow((v) => !v)}
+              className="absolute right-1 top-1 grid size-8 place-items-center rounded-sm text-muted-foreground hover:text-foreground"
+            >
+              {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            </button>
+          </div>
+        </Field>
+
+        {formError && (
+          <p role="alert" className="rounded-md border border-danger-border bg-danger-soft px-3 py-2 text-sm text-danger">
+            {formError}
           </p>
-        </div>
-      </aside>
+        )}
 
-      <main className="flex items-center justify-center px-4 py-10">
-        <div className="w-full max-w-sm">
-          <Logo className="mb-8 lg:hidden" />
-          <h1 className="font-serif text-2xl font-semibold tracking-tight">Sign in</h1>
-          <p className="mt-1.5 text-muted-foreground">Use the account your administrator or pharmacy set up.</p>
+        <Button type="submit" size="lg" disabled={isSubmitting} aria-busy={isSubmitting}>
+          {isSubmitting && <Loader2 className="animate-spin" aria-hidden="true" />}
+          Sign in
+        </Button>
+      </form>
 
-          <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-5" noValidate>
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="email" className="text-sm font-medium">
-                Email
-              </label>
-              <Input id="email" name="email" type="email" autoComplete="username" required />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="password" className="text-sm font-medium">
-                Password
-              </label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  name="password"
-                  type={show ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  required
-                  className="pr-11"
-                />
-                <button
-                  type="button"
-                  aria-label={show ? 'Hide password' : 'Show password'}
-                  aria-pressed={show}
-                  onClick={() => setShow((v) => !v)}
-                  className="absolute right-1 top-1 grid size-8 place-items-center rounded-sm text-muted-foreground hover:text-foreground"
-                >
-                  {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </button>
-              </div>
-            </div>
-            <Button type="submit" size="lg">
-              Sign in
-            </Button>
-          </form>
-
-          <p className="mt-6 text-sm text-muted-foreground">
-            New patient or pharmacist?{' '}
-            <Link to="/" className="font-medium text-foreground underline underline-offset-4">
-              Create an account
-            </Link>
-            . Doctors receive an activation code from an administrator.
-          </p>
-          <p className="mt-10 text-xs text-muted-foreground">Academic demo. Not for clinical use.</p>
-        </div>
-      </main>
-    </div>
+      <p className="mt-6 text-sm text-muted-foreground">
+        New patient or pharmacist?{' '}
+        <Link to="/register" className="font-medium text-foreground underline underline-offset-4">
+          Create an account
+        </Link>
+        . Doctors receive an activation code from an administrator:{' '}
+        <Link to="/activate" className="font-medium text-foreground underline underline-offset-4">
+          activate your account
+        </Link>
+        .
+      </p>
+    </AuthLayout>
   )
 }

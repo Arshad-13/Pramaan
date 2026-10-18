@@ -1,46 +1,18 @@
-import {
-  FilePlus2,
-  Files,
-  LayoutDashboard,
-  Menu,
-  Palette,
-  ScanLine,
-  ScrollText,
-  UsersRound,
-  X,
-  type LucideIcon,
-} from 'lucide-react'
+import { LogOut, Menu, X } from 'lucide-react'
 import { useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { Logo } from '@/components/Logo'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { useAuth } from '@/lib/auth'
+import { navFor } from '@/lib/nav'
+import { ROLE_LABEL, type Role } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
-interface NavItem {
-  to: string
-  label: string
-  icon: LucideIcon
-  end?: boolean
-}
-
-// Role filtering arrives with authentication (Phase 3); every entry is listed for now.
-const NAV: NavItem[] = [
-  { to: '/', label: 'Overview', icon: LayoutDashboard, end: true },
-  { to: '/prescriptions/new', label: 'New prescription', icon: FilePlus2 },
-  { to: '/prescriptions', label: 'My prescriptions', icon: Files, end: true },
-  { to: '/verify', label: 'Verify', icon: ScanLine },
-  { to: '/admin', label: 'Administration', icon: UsersRound },
-  { to: '/audit', label: 'Audit log', icon: ScrollText },
-]
-const DEV_NAV: NavItem[] = import.meta.env.DEV
-  ? [{ to: '/design', label: 'Design system', icon: Palette }]
-  : []
-
-function NavList({ onNavigate }: { onNavigate?: () => void }) {
+function NavList({ role, onNavigate }: { role?: Role; onNavigate?: () => void }) {
   return (
     <nav aria-label="Main" className="flex flex-col gap-0.5">
-      {[...NAV, ...DEV_NAV].map(({ to, label, icon: Icon, end }) => (
+      {navFor(role).map(({ to, label, icon: Icon, end }) => (
         <NavLink
           key={to}
           to={to}
@@ -63,10 +35,36 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
   )
 }
 
+function AccountBlock() {
+  const { user, signOut } = useAuth()
+  const navigate = useNavigate()
+  if (!user) return null
+  return (
+    <div className="flex items-center gap-2 border-t border-border px-2 pt-3">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{user.name}</p>
+        <p className="truncate text-xs text-muted-foreground">{ROLE_LABEL[user.role]}</p>
+      </div>
+      <button
+        type="button"
+        aria-label="Sign out"
+        title="Sign out"
+        onClick={async () => {
+          await signOut()
+          navigate('/login', { replace: true })
+        }}
+        className="grid size-9 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
+      >
+        <LogOut className="size-4" aria-hidden="true" />
+      </button>
+    </div>
+  )
+}
+
 /** App frame: sidebar on desktop, collapsible top bar on phones. Footer carries the disclaimer. */
 export function AppShell() {
   const [open, setOpen] = useState(false)
-  const { pathname } = useLocation()
+  const { user } = useAuth()
 
   return (
     <div className="min-h-dvh md:grid md:grid-cols-[15rem_1fr]">
@@ -81,10 +79,12 @@ export function AppShell() {
         <div className="px-3 pb-6 pt-1">
           <Logo />
         </div>
-        <NavList />
-        <div className="mt-auto flex items-center justify-between px-1 pt-4">
-          <span className="px-2 text-xs text-muted-foreground">Not signed in</span>
-          <ThemeToggle />
+        <NavList role={user?.role} />
+        <div className="mt-auto flex flex-col gap-3 pt-4">
+          <AccountBlock />
+          <div className="flex justify-end px-1">
+            <ThemeToggle />
+          </div>
         </div>
       </aside>
 
@@ -106,8 +106,9 @@ export function AppShell() {
           </div>
         </div>
         {open && (
-          <div id="mobile-nav" className="border-t border-border px-3 py-3" key={pathname}>
-            <NavList onNavigate={() => setOpen(false)} />
+          <div id="mobile-nav" className="space-y-3 border-t border-border px-3 py-3">
+            <NavList role={user?.role} onNavigate={() => setOpen(false)} />
+            <AccountBlock />
           </div>
         )}
       </header>

@@ -43,18 +43,20 @@ Tiers: **T0** must ship, **T1** should ship, **T2** dropped for the 13-day windo
 **Done when:** chain passes normally; each tamper mode fails with the right result.
 
 ## P3: Auth, RBAC, accounts (Tue 20 - Wed 21) T0
-- [ ] Register (patient, pharmacist=PENDING), login, logout, `/auth/me`, change password (M2)
-- [ ] argon2id, min length 10, dummy-hash timing equalisation, generic 401 for unknown/locked (M2)
-- [ ] JWT loaded against DB on every request; `token_version` revocation; explicit `algorithms=["HS256"]` (M2)
-- [ ] HttpOnly cookie session + CSRF double-submit; Bearer still accepted for scripts (M2)
-- [ ] Lockout after `MAX_FAILED_LOGINS` (M2)
-- [ ] Admin creates doctor, one-time activation token (hash stored, 24 h); `/auth/activate` sets login + signing passwords and generates key (M2, M1)
-- [ ] Pharmacist approve/reject; deactivate = suspend (revokes keys) (M2)
-- [ ] Auditor role; object-level checks return 404 (M2)
-- [ ] Auto-generated role x endpoint RBAC matrix test (M2)
-- [ ] React: login, register, activate pages (M4)
+- [x] Register (patient, pharmacist=PENDING), login, logout, `/auth/me`, change password (M2)
+- [x] argon2id, min length 10, dummy-hash timing equalisation, generic 401 for unknown/locked (M2)
+- [x] JWT loaded against DB on every request; `token_version` revocation; explicit `algorithms=["HS256"]` (M2)
+- [x] HttpOnly cookie session + CSRF double-submit; Bearer still accepted for scripts (M2)
+- [x] Lockout after `MAX_FAILED_LOGINS` (M2)
+- [x] Admin creates doctor, one-time activation token (hash stored, 24 h); `/auth/activate` sets login + signing passwords and generates key (M2, M1)
+- [x] Pharmacist approve/reject; deactivate = suspend (revokes keys) (M2)
+- [x] Auditor role (the object-level 404 helper arrives with prescriptions in P4) (M2)
+- [x] Auto-generated role x endpoint RBAC matrix test (M2)
+- [x] React: login, register, activate pages (M4)
 
 **Done when:** RBAC matrix green; lockout after 5 failures; deactivated user's token fails at once; admin never sees a doctor password.
+
+Extras done in P3: audit endpoints (`/admin/audit`, `verify`, `checkpoint`), `scripts/create_user.py` to bootstrap admin/auditor, admin UI (approvals, activation-code panel, user list, deactivate). Admin accounts use public UUIDs in URLs (`/admin/users/{user_id}`).
 
 ## P4: Issue prescription (Wed 21 - Thu 22) T0
 - [ ] Payload v2 built once; `max_fills`, doctor/patient blocks, `key_id` (M1)
