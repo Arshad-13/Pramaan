@@ -68,3 +68,13 @@ class RiskConfirmationRequired(ServiceError):
 
     status_code = 409
     detail = "This prescription needs your confirmation before it can be signed."
+
+
+class PayloadTooLarge(ServiceError):
+    status_code = 413
+    detail = "The file is too large."
+
+
+class ServiceBusy(ServiceError):
+    status_code = 503
+    detail = "The checker is busy. Try again in a few seconds."

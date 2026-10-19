@@ -109,30 +109,44 @@ def render_png(text: str, box_size: int = 8, border: int = 4) -> bytes:
 # --- decoding --------------------------------------------------------------------------------
 
 
-def decode_qr(image: np.ndarray) -> str | None:
-    """Find and decode a QR code in an image (BGR/gray array). Returns the text or None.
+def locate_qr(image: np.ndarray) -> tuple[str, np.ndarray] | None:
+    """Find and decode a QR code. Returns (text, 4x2 corner points in the ORIGINAL image's pixel
+    coordinates, in the symbol's own order: top-left, top-right, bottom-right, bottom-left) or None.
 
     Tries OpenCV's ArUco-based detector first (more robust), then the classic detector, on the
-    original, an upscaled copy and a thresholded copy, so slightly blurry photos still work."""
+    original, an upscaled copy, a thresholded copy and (for big photos) a downscaled copy, so slightly
+    blurry or very large photos still work."""
     import cv2
 
     gray = image if image.ndim == 2 else cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    candidates = [gray]
-    candidates.append(cv2.resize(gray, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC))
+    candidates: list[tuple[np.ndarray, float]] = [(gray, 1.0)]
+    candidates.append((cv2.resize(gray, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC), 2.0))
     _, otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    candidates.append(otsu)
+    candidates.append((otsu, 1.0))
+    if max(gray.shape[:2]) > 2000:
+        candidates.append(
+            (cv2.resize(gray, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA), 0.5)
+        )
 
     detectors = []
     if hasattr(cv2, "QRCodeDetectorAruco"):
         detectors.append(cv2.QRCodeDetectorAruco())
     detectors.append(cv2.QRCodeDetector())
 
-    for candidate in candidates:
+    for candidate, scale in candidates:
         for detector in detectors:
             try:
-                text, _points, _ = detector.detectAndDecode(candidate)
+                text, points, _ = detector.detectAndDecode(candidate)
             except cv2.error:
                 continue
-            if text:
-                return text
+            if text and points is not None:
+                pts = np.asarray(points, dtype=np.float64).reshape(-1, 2)
+                if len(pts) == 4:
+                    return text, pts / scale
     return None
+
+
+def decode_qr(image: np.ndarray) -> str | None:
+    """Just the text of the QR code in an image, or None."""
+    found = locate_qr(image)
+    return found[0] if found else None

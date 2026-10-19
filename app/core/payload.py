@@ -193,3 +193,35 @@ def validate_printable(p: dict[str, Any]) -> None:
             )  # fmt: skip
     if len(notes_lines(p)) > layout.MAX_NOTE_LINES:
         raise PayloadError(f"Notes are too long: at most {layout.MAX_NOTE_LINES} printed lines.")
+
+
+# --- zone-by-zone expected text (for verifying a photographed or scanned page) ---------------------
+
+
+def zone_texts(p: dict[str, Any], payload_hash: str) -> dict[str, list[str]]:
+    """The exact printed lines of every payload zone. The verifier compares an upload with these."""
+    texts: dict[str, list[str]] = {
+        "clinic": [clinic_text(p)],
+        "doctor": list(doctor_lines(p)),
+        "dates": list(dates_lines(p)),
+        "patient": [patient_text(p)],
+        "footer": list(footer_lines(p["rx_id"], payload_hash)),
+    }
+    for i, med in enumerate(p["medicines"]):
+        for zone, cell in zip(layout.zone_names_for_medicine(i), medicine_cells(med), strict=True):
+            texts[zone] = [cell]
+    notes = notes_lines(p)
+    if notes:
+        texts["notes"] = notes
+    return texts
+
+
+def blank_zone_names(p: dict[str, Any]) -> list[str]:
+    """Zones that must contain no ink: unused medicine rows, an empty notes box, blank regions."""
+    names: list[str] = []
+    for i in range(len(p["medicines"]), layout.MAX_MEDICINES):
+        names.extend(layout.zone_names_for_medicine(i))
+    if not notes_lines(p):
+        names.append("notes")
+    names.extend(layout.BLANK_REGIONS)
+    return names

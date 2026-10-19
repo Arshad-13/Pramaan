@@ -135,3 +135,14 @@ def wrap_lines(text: str, width: float, font: str = FONT, size: float = BODY_SIZ
             current = word
         lines.append(current)
     return lines
+
+
+# Static template text (labels, caption): not payload content, so never compared as evidence.
+STATIC_ZONES = frozenset({"qr", "qr_caption", "table_head"})
+
+# Areas of the page that are always empty on a genuine prescription. Ink here means somebody
+# added something. (Unused medicine rows and an empty notes box are blank too; see payload.py.)
+BLANK_REGIONS: dict[str, Rect] = {
+    "blank_gap": Rect(40, 418, 515, 16),
+    "blank_mid": Rect(40, 526, 515, 170),
+}

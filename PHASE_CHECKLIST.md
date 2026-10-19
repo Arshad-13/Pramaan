@@ -99,15 +99,15 @@ Built early in P5 because every prescription requires a patient PIN by default: 
 Also built: live `POST /prescriptions/risk-check` (typo hints, score, whether a reason is needed), `GET /drugs` for autosuggest, a RISK_OVERRIDE LOW security event for admins, and controlled medicines are limited to one fill. Not in this phase: drug-interaction rules (cut for the 13-day window), the anomaly term (Phase 8).
 
 ## P7: Upload verification, render-and-diff (Sat 24 spike, Sun 25 build) T1
-- [ ] **Spike go/no-go recorded by end of Sat 24** (rectify + diff on 10 sample photos); no-go => OCR-only fallback (M3)
-- [ ] `ocr.py` RapidOCR adapter; `rectify.py`; `render_diff.py`; `extract.py` (M3)
-- [ ] QR decode from image/PDF with fallbacks (M3)
-- [ ] Text-layer vs rendered-page check (`HIDDEN_TEXT_OR_OVERLAY`) (M3)
-- [ ] Extra-content detection in unused rows/margins (M3)
-- [ ] `/verify/upload` with magic-byte and size checks; `REVIEW_REQUIRED` result (M2, M3)
-- [ ] `make_demo_samples.py`: >= 20 genuine + >= 20 tampered (5 photographed) (M4)
-- [ ] React: upload drop zone, `TamperOverlay` with signed-vs-read callouts (M3)
-- [ ] Results table in `docs/evaluation.md` (M3)
+- [x] **Spike go/no-go recorded** (GO, done early) (rectify + diff on 10 sample photos); no-go => OCR-only fallback (M3)
+- [x] `ocr.py` RapidOCR adapter; `rectify.py`; `render_diff.py`; `extract.py` (M3)
+- [x] QR decode from image/PDF with fallbacks (M3)
+- [x] Text-layer vs rendered-page check (`HIDDEN_TEXT_OR_OVERLAY`) (M3)
+- [x] Extra-content detection in unused rows/margins (M3)
+- [x] `/verify/upload` with magic-byte and size checks; `REVIEW_REQUIRED` result (M2, M3)
+- [x] `evaluate_upload.py` (replaces `make_demo_samples.py`; writes the samples to `samples/`): >= 20 genuine + >= 20 tampered (5 photographed) (M4)
+- [x] React: upload drop zone, `TamperOverlay` with signed-vs-read callouts (M3)
+- [x] Results table in `docs/evaluation.md` (M3)
 
 **Done when:** genuine digital => VALID 100%; genuine photos never TAMPERED (>= 95% VALID/REVIEW); single-digit edits => TAMPERED >= 95% with correct zone; overlay and extra-medicine attacks => TAMPERED.
 

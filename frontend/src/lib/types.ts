@@ -103,11 +103,32 @@ export interface VerifyChecks {
   file_integrity: string | null
 }
 
+/** A field of an uploaded page that differs from what the doctor signed (Spec Section 11). */
+export interface ContentZone {
+  zone: string
+  label: string
+  signed: string
+  read: string | null
+  status: 'MISMATCH' | 'EXTRA_CONTENT' | 'UNREADABLE'
+  /** Outline of the field on the overlay image, in overlay pixels (four corners). */
+  quad: [number, number][]
+}
+
+export interface VerifyOverlay {
+  image: string
+  width: number
+  height: number
+}
+
 export interface VerifyResult {
   result: VerifyResultCode
   reason_codes: string[]
   rx_id: string | null
   checks: VerifyChecks | null
+  content_zones?: ContentZone[]
+  overlay?: VerifyOverlay | null
+  /** Upload verification only: the code read from the file, so it can be dispensed against. */
+  qr_string?: string | null
   risk: { score: number; flags: string[]; explanations: string[] } | null
   warnings: string[]
   doctor: { name: string; license_no: string } | null

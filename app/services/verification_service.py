@@ -12,7 +12,10 @@
  10. stored risk score                          -> SUSPICIOUS
  11. otherwise                                  -> VALID
 Precedence when several apply: TAMPERED > REVOKED > ALREADY_USED > EXPIRED > SUSPICIOUS > VALID.
-(Steps 1 and 8, reading an uploaded photo/PDF, arrive in Phase 7.)
+
+Uploads (Phase 7): `verify_upload()` first finds the QR code in the photo/PDF (step 1), runs
+`evaluate()`, then (step 8) compares the page itself with the signed content. A page that differs
+in what it says is TAMPERED; a page we cannot read well enough is REVIEW_REQUIRED, never TAMPERED.
 
 Verification is READ-ONLY with respect to the prescription: only `dispense()` consumes a fill.
 `dispense()` re-runs the checks inside the same transaction, checks the patient PIN, then performs
@@ -25,6 +28,7 @@ patient is shown only as an initial plus surname.
 from __future__ import annotations
 
 import json
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
@@ -40,7 +44,7 @@ from app.core.canonical import sha256_hex
 from app.core.keys import load_public_key
 from app.core.payload import iso_z
 from app.core.qr import ParsedQR, QRFormatError, parse_qr
-from app.errors import BadRequest, Conflict, Forbidden, Locked
+from app.errors import BadRequest, Conflict, Forbidden, Locked, PayloadTooLarge, ServiceBusy
 from app.models import (
     Dispense,
     DoctorKey,
@@ -63,9 +67,16 @@ PRECEDENCE = (
     "REVIEW_REQUIRED",
     "VALID",
 )
+UPLOAD_SLOTS = threading.BoundedSemaphore(2)  # image checks are CPU heavy: at most 2 at once
 PIN_ATTEMPT_LIMIT = 3
 PIN_ATTEMPT_WINDOW_MINUTES = 5
 
+_CONTENT_RESULT = {
+    "CONTENT_MISMATCH": "TAMPERED",
+    "EXTRA_CONTENT": "TAMPERED",
+    "HIDDEN_TEXT_OR_OVERLAY": "TAMPERED",
+    "UNREADABLE_CONTENT": "REVIEW_REQUIRED",
+}
 _REASON_RESULT = {
     "DOCTOR_KEY_REVOKED": "REVOKED",
     "DOCTOR_SUSPENDED": "REVOKED",
@@ -89,6 +100,8 @@ class Evaluation:
     patient: User | None = None
     risk_score: int = 0
     risk_flags: list[str] = field(default_factory=list)
+    content: Any = None  # ContentReport, for uploads only
+    qr_string: str | None = None  # the code read from an upload
 
 
 def mask_name(name: str) -> str:
@@ -279,10 +292,23 @@ def _to_out(ev: Evaluation) -> VerifyOut:
         "reason_codes": ev.reasons,
         "rx_id": rx.id if (rx and ev.authentic) else None,
         "checks": ChecksOut(**ev.checks) if ev.checks else None,
-        "can_dispense": ev.result == "VALID",
+        "can_dispense": ev.result in ("VALID", "REVIEW_REQUIRED"),
         "pin_required": bool(rx.require_pin) if (rx and ev.authentic) else False,
         "warnings": [],
     }
+    if ev.content is not None:
+        base.update(
+            content_zones=[
+                {
+                    "zone": f.zone, "label": f.label, "signed": f.signed, "read": f.read,
+                    "status": f.status, "quad": f.quad,
+                }
+                for f in ev.content.findings
+            ],
+            overlay=ev.content.overlay,
+        )  # fmt: skip
+    if ev.qr_string is not None and ev.result in ("VALID", "REVIEW_REQUIRED"):
+        base["qr_string"] = ev.qr_string
     if not ev.authentic or ev.payload is None or rx is None:
         return VerifyOut(**base)
     p = ev.payload
@@ -342,6 +368,61 @@ def _record_attempt(db: Session, pharmacist: User, ev: Evaluation, ip: str | Non
 
 def verify_qr(db: Session, pharmacist: User, qr_string: str, ip: str | None = None) -> VerifyOut:
     ev = evaluate(db, qr_string)
+    _record_attempt(db, pharmacist, ev, ip)
+    db.commit()
+    return _to_out(ev)
+
+
+# --- upload verification -----------------------------------------------------
+
+
+def _apply_content(ev: Evaluation, report: Any) -> None:
+    """Fold the page-content findings into the decision (a stronger finding always wins)."""
+    ev.content = report
+    ev.checks["content_check"] = {"MATCH": "MATCH", "MISMATCH": "MISMATCH"}.get(
+        report.status, "UNREADABLE"
+    )
+    ev.checks["file_integrity"] = report.file_integrity
+    for reason in report.reasons:
+        if reason not in ev.reasons:
+            ev.reasons.append(reason)
+    candidates = {ev.result} | {_CONTENT_RESULT[r] for r in report.reasons if r in _CONTENT_RESULT}
+    ev.result = next((r for r in PRECEDENCE if r in candidates), ev.result)
+
+
+def verify_upload(
+    db: Session, pharmacist: User, data: bytes, ip: str | None = None, engine: Any = None
+) -> VerifyOut:
+    """Verify a photo or PDF: read its QR code, check the signature, then check the page itself."""
+    from app.ai.content_check import check_content
+    from app.core.qr import locate_qr
+    from app.core.uploads import UploadError, load_upload
+
+    if not UPLOAD_SLOTS.acquire(blocking=False):
+        raise ServiceBusy()
+    try:
+        try:
+            upload = load_upload(data)
+        except UploadError as exc:
+            if exc.status == 413:
+                raise PayloadTooLarge(str(exc)) from exc
+            raise BadRequest(str(exc)) from exc
+
+        found = locate_qr(upload.image)
+        if found is None:
+            ev = Evaluation("INVALID_QR", ["NO_QR_IN_FILE"])
+        else:
+            qr_string = found[0]
+            ev = evaluate(db, qr_string)
+            ev.qr_string = qr_string
+            if ev.authentic and ev.payload is not None and ev.rx is not None:
+                report = check_content(
+                    upload, data, ev.payload, ev.rx.payload_hash, qr_string,
+                    ev.rx.pdf_sha256, engine,
+                )  # fmt: skip
+                _apply_content(ev, report)
+    finally:
+        UPLOAD_SLOTS.release()
     _record_attempt(db, pharmacist, ev, ip)
     db.commit()
     return _to_out(ev)

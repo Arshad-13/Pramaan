@@ -1,10 +1,12 @@
-import { Loader2, QrCode, ScanLine, TextCursorInput, TriangleAlert } from 'lucide-react'
+import { FileUp, Loader2, QrCode, ScanLine, TextCursorInput, TriangleAlert } from 'lucide-react'
 import { useCallback, useState, type FormEvent } from 'react'
 
 import { DispensePanel } from '@/components/DispensePanel'
 import { PageHeader } from '@/components/PageHeader'
 import { QrScanner } from '@/components/QrScanner'
 import { Seal } from '@/components/Seal'
+import { TamperOverlay } from '@/components/TamperOverlay'
+import { UploadDrop } from '@/components/UploadDrop'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { VerificationTimeline } from '@/components/VerificationTimeline'
@@ -15,7 +17,7 @@ import { reasonText } from '@/lib/verify'
 import { VERDICT_META } from '@/lib/verdicts'
 import { cn } from '@/lib/utils'
 
-type Tab = 'scan' | 'paste'
+type Tab = 'scan' | 'upload' | 'paste'
 
 const TONE_PANEL = {
   verified: 'border-verified-border bg-verified-soft',
@@ -88,6 +90,22 @@ export default function Verify() {
     }
   }, [])
 
+  const runUpload = useCallback(async (file: File) => {
+    setPending(true)
+    setError(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const outcome = await api<VerifyResult>('/verify/upload', { method: 'POST', body: form })
+      setResult(outcome)
+      setQr(outcome.qr_string ?? null)
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Something went wrong. Try again.')
+    } finally {
+      setPending(false)
+    }
+  }, [])
+
   function reset() {
     setResult(null)
     setQr(null)
@@ -104,7 +122,7 @@ export default function Verify() {
     <>
       <PageHeader
         title="Verify"
-        description="Scan a prescription's QR code, or paste the code. You get a verdict and the evidence behind it."
+        description="Scan a prescription's QR code, upload a photo or PDF of the page, or paste the code. You get a verdict and the evidence behind it."
         actions={
           result ? (
             <Button variant="outline" onClick={reset}>
@@ -120,6 +138,7 @@ export default function Verify() {
             {(
               [
                 ['scan', 'Scan', QrCode],
+                ['upload', 'Upload photo or PDF', FileUp],
                 ['paste', 'Paste code', TextCursorInput],
               ] as const
             ).map(([value, label, Icon]) => (
@@ -140,6 +159,7 @@ export default function Verify() {
           </div>
 
           {tab === 'scan' && <QrScanner onResult={run} />}
+          {tab === 'upload' && <UploadDrop onFile={runUpload} pending={pending} />}
           {tab === 'paste' && (
             <form onSubmit={onPaste} className="space-y-3">
               <label htmlFor="qr-text" className="text-sm font-medium">
@@ -184,9 +204,12 @@ export default function Verify() {
               <RiskNotes result={result} />
               {result.can_dispense && qr && <DispensePanel result={result} qr={qr} onReset={reset} />}
             </div>
-            <div className="lg:order-1">
-              <h3 className="mb-3 text-sm font-semibold">Checks</h3>
-              <VerificationTimeline result={result} />
+            <div className="space-y-6 lg:order-1">
+              <div>
+                <h3 className="mb-3 text-sm font-semibold">Checks</h3>
+                <VerificationTimeline result={result} />
+              </div>
+              {result.overlay && <TamperOverlay overlay={result.overlay} zones={result.content_zones ?? []} />}
             </div>
           </div>
         </div>

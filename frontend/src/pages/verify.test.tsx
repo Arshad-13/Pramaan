@@ -313,3 +313,138 @@ describe('PinRing', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('can no longer be dispensed')
   })
 })
+
+describe('Upload verification', () => {
+  const fetchMock = vi.fn()
+  beforeEach(() => {
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  const OVERLAY = { image: 'data:image/jpeg;base64,/9j/', width: 1100, height: 1500 }
+  const ZONE = {
+    zone: 'med_0_dose',
+    label: 'Medicine 1 dose',
+    signed: '500 mg',
+    read: '800 mg',
+    status: 'MISMATCH' as const,
+    quad: [[100, 400], [300, 400], [300, 440], [100, 440]] as [number, number][],
+  }
+  const MATCHING = { ...CHECKS, content_check: 'MATCH', file_integrity: 'ORIGINAL' }
+
+  function routeUpload(body: unknown) {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/auth/me') return json(200, PHARMACIST)
+      if (url === '/api/verify/upload') return json(200, body)
+      throw new Error(`unexpected ${url}`)
+    })
+  }
+
+  async function chooseFile(file: File) {
+    await userEvent.click(await screen.findByRole('tab', { name: /Upload photo or PDF/ }))
+    await userEvent.upload(screen.getByLabelText(/Drop a photo or PDF/), file)
+  }
+
+  it('sends the file as multipart form data, without forcing a JSON content type', async () => {
+    routeUpload({ ...VALID, checks: MATCHING, qr_string: CODE, overlay: OVERLAY, content_zones: [] })
+    renderVerify()
+    await chooseFile(new File(['%PDF-1.4'], 'rx.pdf', { type: 'application/pdf' }))
+    expect(await screen.findByRole('heading', { name: 'Verified' })).toBeInTheDocument()
+    const call = fetchMock.mock.calls.find(([u]) => u === '/api/verify/upload')!
+    expect(call[1].body).toBeInstanceOf(FormData)
+    expect((call[1].body as FormData).get('file')).toBeInstanceOf(File)
+    expect(call[1].headers['Content-Type']).toBeUndefined()
+    expect(screen.getByText('Page matches what was signed')).toBeInTheDocument()
+    // a verified upload can go straight on to dispensing with the code read from the file
+    expect(screen.getByRole('button', { name: 'Dispense' })).toBeInTheDocument()
+  })
+
+  it('outlines a changed field and says what was signed against what the page shows', async () => {
+    routeUpload({
+      ...VALID,
+      result: 'TAMPERED',
+      reason_codes: ['CONTENT_MISMATCH'],
+      checks: { ...CHECKS, content_check: 'MISMATCH' },
+      can_dispense: false,
+      qr_string: null,
+      overlay: OVERLAY,
+      content_zones: [ZONE],
+    })
+    renderVerify()
+    await chooseFile(new File(['x'], 'photo.png', { type: 'image/png' }))
+    expect(await screen.findByRole('heading', { name: 'Tampered' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'The uploaded prescription' })).toBeInTheDocument()
+    const item = screen.getByText('Medicine 1 dose').closest('li')!
+    expect(within(item).getByText('500 mg')).toBeInTheDocument()
+    expect(within(item).getByText('800 mg')).toBeInTheDocument()
+    expect(screen.getAllByText('Some printed fields differ from what the doctor signed.').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Dispense' })).not.toBeInTheDocument()
+  })
+
+  it('asks for a review, not an accusation, when the page cannot be read well', async () => {
+    routeUpload({
+      ...VALID,
+      result: 'REVIEW_REQUIRED',
+      reason_codes: ['UNREADABLE_CONTENT'],
+      checks: { ...CHECKS, content_check: 'UNREADABLE' },
+      qr_string: CODE,
+      overlay: OVERLAY,
+      content_zones: [{ ...ZONE, status: 'UNREADABLE', read: null }],
+    })
+    renderVerify()
+    await chooseFile(new File(['x'], 'photo.jpg', { type: 'image/jpeg' }))
+    expect(await screen.findByRole('heading', { name: 'Review required' })).toBeInTheDocument()
+    expect(screen.getByText('Could not be read')).toBeInTheDocument()
+    expect(screen.getByText('something unclear')).toBeInTheDocument()
+  })
+
+  it('explains a file with no QR code', async () => {
+    routeUpload({ ...VALID, ...NO_DATA, result: 'INVALID_QR', reason_codes: ['NO_QR_IN_FILE'] })
+    renderVerify()
+    await chooseFile(new File(['x'], 'blank.png', { type: 'image/png' }))
+    expect(await screen.findByRole('heading', { name: 'Invalid QR' })).toBeInTheDocument()
+    expect(screen.getAllByText(/No Pramaan QR code could be found/).length).toBeGreaterThan(0)
+  })
+
+  it('refuses a file type the server would reject, before uploading', async () => {
+    routeUpload(VALID)
+    renderVerify()
+    await userEvent.click(await screen.findByRole('tab', { name: /Upload photo or PDF/ }))
+    const input = screen.getByLabelText(/Drop a photo or PDF/) as HTMLInputElement
+    // userEvent.upload honours `accept`, so bypass it the way a drag-and-drop could
+    const file = new File(['MZ'], 'run.exe', { type: 'application/x-msdownload' })
+    Object.defineProperty(input, 'files', { value: [file], configurable: true })
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Choose a JPEG or PNG photo, or a PDF.')
+    expect(fetchMock.mock.calls.some(([u]) => u === '/api/verify/upload')).toBe(false)
+  })
+
+  it('shows an upload error from the server', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/auth/me') return json(200, PHARMACIST)
+      return json(413, { detail: 'The file is larger than 5 MB.' })
+    })
+    renderVerify()
+    await chooseFile(new File(['x'], 'big.png', { type: 'image/png' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('The file is larger than 5 MB.')
+  })
+})
+
+describe('timeline with a page check', () => {
+  it('adds the content step and keeps the later steps visible after a content mismatch', () => {
+    const steps = timelineSteps({
+      ...VALID,
+      result: 'TAMPERED',
+      reason_codes: ['CONTENT_MISMATCH'],
+      checks: { ...CHECKS, content_check: 'MISMATCH' },
+    })
+    expect(steps.map((s) => s.id)).toEqual(['read', 'found', 'record', 'signature', 'content', 'standing', 'status', 'risk'])
+    expect(steps.find((s) => s.id === 'content')!.state).toBe('fail')
+    expect(steps.find((s) => s.id === 'signature')!.state).toBe('pass')
+  })
+  it('warns when the page could not be read', () => {
+    const steps = timelineSteps({ ...VALID, result: 'REVIEW_REQUIRED', reason_codes: ['UNREADABLE_CONTENT'], checks: { ...CHECKS, content_check: 'UNREADABLE' } })
+    expect(steps.find((s) => s.id === 'content')!.state).toBe('warn')
+  })
+})

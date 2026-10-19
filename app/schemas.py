@@ -291,11 +291,29 @@ class VerifiedPatient(BaseModel):
     name: str  # masked: initial + surname
 
 
+class ContentZoneOut(BaseModel):
+    zone: str
+    label: str
+    signed: str
+    read: str | None = None
+    status: str  # MISMATCH, EXTRA_CONTENT or UNREADABLE
+    quad: list[list[float]]  # outline on the overlay image, in overlay pixels
+
+
+class OverlayOut(BaseModel):
+    image: str  # JPEG data URL of the upload, downscaled
+    width: int
+    height: int
+
+
 class VerifyOut(BaseModel):
     result: VerifyResult
     reason_codes: list[str]
     rx_id: str | None = None
     checks: ChecksOut | None = None
+    content_zones: list[ContentZoneOut] = []
+    overlay: OverlayOut | None = None
+    qr_string: str | None = None  # upload verification only: lets the pharmacist dispense next
     risk: RiskOut | None = None
     warnings: list[str] = []
     doctor: VerifiedDoctor | None = None

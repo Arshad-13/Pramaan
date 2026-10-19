@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, File, Request, UploadFile
 from sqlalchemy.orm import Session
 
+from app.core.uploads import MAX_BYTES
 from app.db import get_db
 from app.deps import require_role
 from app.models import Role, User
@@ -28,6 +31,17 @@ def verify_qr(
     db: Session = Depends(get_db),
 ) -> VerifyOut:
     return verification.verify_qr(db, pharmacist, data.qr_string, _ip(request))
+
+
+@router.post("/verify/upload", response_model=VerifyOut)
+def verify_upload(
+    request: Request,
+    file: Annotated[UploadFile, File()],
+    pharmacist: User = PharmacistUser,
+    db: Session = Depends(get_db),
+) -> VerifyOut:
+    data = file.file.read(MAX_BYTES + 1)  # never read more than one byte past the limit
+    return verification.verify_upload(db, pharmacist, data, _ip(request))
 
 
 @router.post("/prescriptions/{rx_id}/dispense", response_model=DispenseOut)

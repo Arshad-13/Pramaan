@@ -12,6 +12,7 @@ qrcode[pil]
 opencv-python-headless
 reportlab
 PyMuPDF
+Pillow
 rapidocr-onnxruntime
 rapidfuzz
 scikit-learn

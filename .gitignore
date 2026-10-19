@@ -31,3 +31,4 @@ Thumbs.db
 .idea/
 .vscode/
 *.db.demo*
+samples/

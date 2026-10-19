@@ -25,6 +25,12 @@ export const REASON_TEXT: Record<string, string> = {
   FULLY_DISPENSED: 'Every permitted fill has already been dispensed.',
   RX_EXPIRED: 'The validity period set by the doctor has ended.',
   RISK_ABOVE_THRESHOLD: 'The contents look unusual and need your review.',
+  NO_QR_IN_FILE: 'No Pramaan QR code could be found in that file. Retake the photo with the whole page in view.',
+  CONTENT_MISMATCH: 'Some printed fields differ from what the doctor signed.',
+  EXTRA_CONTENT: 'There is writing on the page that the doctor did not sign.',
+  HIDDEN_TEXT_OR_OVERLAY: 'The PDF hides different text behind what is shown, or covers the original.',
+  UNREADABLE_CONTENT: 'Some important fields could not be read reliably. Compare them with the verified record.',
+  LOW_ALIGNMENT: 'The page was too tilted, curled or cut off to line up with the original.',
 }
 
 export function reasonText(code: string): string {
@@ -44,7 +50,7 @@ export function timelineSteps(r: VerifyResult): Step[] {
     id: 'read',
     label: 'Code read',
     state: r.result === 'INVALID_QR' ? 'fail' : 'pass',
-    note: r.result === 'INVALID_QR' ? reasonText('MALFORMED_QR') : undefined,
+    note: r.result === 'INVALID_QR' ? reasonText(has('NO_QR_IN_FILE') ? 'NO_QR_IN_FILE' : 'MALFORMED_QR') : undefined,
   })
   if (r.result === 'INVALID_QR') {
     return [
@@ -77,6 +83,7 @@ export function timelineSteps(r: VerifyResult): Step[] {
     state: recordBad ? 'fail' : 'pass',
     note: recordBad ? reasonText(r.reason_codes.find((c) => c === 'QR_HASH_MISMATCH') ?? 'DB_RECORD_ALTERED') : undefined,
   })
+  const contentRan = (r.checks?.content_check ?? 'NOT_CHECKED') !== 'NOT_CHECKED'
   const sigBad = has('INVALID_SIGNATURE', 'KEY_ID_MISMATCH', 'KEY_NOT_FOUND')
   steps.push({
     id: 'signature',
@@ -84,7 +91,21 @@ export function timelineSteps(r: VerifyResult): Step[] {
     state: sigBad ? 'fail' : 'pass',
     note: sigBad ? reasonText(r.reason_codes.find((c) => ['INVALID_SIGNATURE', 'KEY_ID_MISMATCH', 'KEY_NOT_FOUND'].includes(c))!) : undefined,
   })
-  if (hard) {
+  const content = r.checks?.content_check ?? 'NOT_CHECKED'
+  if (content !== 'NOT_CHECKED') {
+    const bad = has('CONTENT_MISMATCH', 'EXTRA_CONTENT', 'HIDDEN_TEXT_OR_OVERLAY')
+    steps.push({
+      id: 'content',
+      label: 'Page matches what was signed',
+      state: bad ? 'fail' : content === 'MATCH' ? 'pass' : 'warn',
+      note: bad
+        ? reasonText(r.reason_codes.find((c) => ['HIDDEN_TEXT_OR_OVERLAY', 'EXTRA_CONTENT', 'CONTENT_MISMATCH'].includes(c))!)
+        : content === 'MATCH'
+          ? undefined
+          : reasonText('UNREADABLE_CONTENT'),
+    })
+  }
+  if (hard && !contentRan) {
     return [
       ...steps,
       skipped('standing', 'Doctor in good standing'),

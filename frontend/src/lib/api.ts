@@ -53,7 +53,9 @@ export interface RequestOptions {
 export async function api<T = void>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method ?? 'GET'
   const headers: Record<string, string> = { Accept: 'application/json' }
-  if (options.body !== undefined) headers['Content-Type'] = 'application/json'
+  const isForm = typeof FormData !== 'undefined' && options.body instanceof FormData
+  // A multipart body sets its own Content-Type (with the boundary), so only JSON needs one.
+  if (options.body !== undefined && !isForm) headers['Content-Type'] = 'application/json'
   if (method !== 'GET') {
     const csrf = readCsrfToken()
     if (csrf) headers[CSRF_HEADER] = csrf
@@ -65,7 +67,7 @@ export async function api<T = void>(path: string, options: RequestOptions = {}):
       method,
       headers,
       credentials: 'same-origin',
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      body: options.body === undefined ? undefined : isForm ? (options.body as FormData) : JSON.stringify(options.body),
     })
   } catch {
     throw new ApiError(0, 'Cannot reach the server. Check your connection and try again.')
