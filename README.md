@@ -22,7 +22,10 @@ cd frontend
 npm install
 cd ..
 
-# 3. Run API (:8000) and Vite dev server (:5173) together
+# 3. Create the demo world (accounts, history, sample files). WIPES the local database.
+.\.venv\Scripts\python.exe scripts\seed_demo.py --reset --samples samples\demo
+
+# 4. Run API (:8000) and Vite dev server (:5173) together
 .\scripts\run_dev.ps1
 ```
 
