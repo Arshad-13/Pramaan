@@ -30,6 +30,33 @@ Open <http://localhost:5173>. For a single-process build, run `npm run build` in
 
 The app **refuses to start** if `.env` is missing or contains placeholder or malformed secrets.
 
+## Demo accounts and the demo script
+
+`seed_demo.py` prints these (all local demo passwords). Doctors' signing password: `Doctor-Signing-Phrase-9`.
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | admin@pramaan.test | Admin-Demo-2026 |
+| Auditor | auditor@pramaan.test | Auditor-Demo-2026 |
+| Doctor | dr.shah@clinic.test, dr.iyer@clinic.test | Doctor-Login-2026 |
+| Pharmacist | meera@citypharm.test, rohan@medplus.test | Pharma-Secret-2026 |
+| Patient | ravi.patel@example.test (and sneha.rao, kabir.khan, anita.desai @example.test) | Patient-Demo-2026 |
+
+Sample files are in `samples/demo/` (`ready.pdf`, forged variants, one `.qr.txt` per case). The demo script of the spec (Section 18) in short:
+
+1. **Genuine:** as Dr. Shah, issue a prescription; as the pharmacist, upload its PDF on *Verify* -> Verified; the patient's PIN (patient account, *Show PIN*) lets you dispense.
+2. **Edited image:** upload `ready_forged_dose_800mg.png` -> Tampered, with the dose cell outlined ("Signed 500 mg / Document reads 800 mg"). Also try the photo, `ready_forged_overlay.pdf`, `ready_forged_hidden_text.pdf`, `ready_forged_extra_medicine.png`.
+3. **Forged code:** paste `ready_forged_qr.qr.txt` on the Paste tab -> Tampered.
+4. **Replay:** dispense as Meera, then verify the same file as Rohan -> Already used, and a MEDIUM alert appears under *Administration*.
+5. **Other states:** paste `expired`, `revoked`, `suspicious`, `used` and `controlled` codes.
+6. **Audit log:** as the auditor, *Verify chain*. To show detection, run `python scripts/tamper_audit_demo.py --mode edit` (works on a copy).
+7. **Encryption and key rotation:** `storage/*.pdf.enc` is ciphertext; stop the API, back up, run `python scripts/rotate_master_key.py`, start it again: PDFs still download.
+8. **Attack suite:** `python scripts/attack_suite.py` prints what stopped each of 16 attacks ([results](docs/attack_suite.md)).
+
+## Documents
+
+[`docs/architecture.md`](docs/architecture.md) (diagrams), [`docs/threat_model.md`](docs/threat_model.md), [`docs/assumptions.md`](docs/assumptions.md), [`docs/evaluation.md`](docs/evaluation.md) (upload checking and anomaly model, with honest caveats), [`docs/attack_suite.md`](docs/attack_suite.md). Screenshots from the browser test are in `docs/screenshots/`.
+
 ## Checks
 
 ```powershell
@@ -37,6 +64,8 @@ The app **refuses to start** if `.env` is missing or contains placeholder or mal
 .\.venv\Scripts\python.exe -m ruff check .; .\.venv\Scripts\python.exe -m black --check .
 .\.venv\Scripts\python.exe -m bandit -q -r app scripts -ll
 cd frontend; npm test; npm run build; npm run lint
+.\scripts\check.ps1 -Full                        # everything CI runs, in one go
+cd frontend; npm run build; npm run e2e         # real-browser demo script + accessibility check (own seeded database on :8002)
 ```
 
 ## Troubleshooting

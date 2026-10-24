@@ -145,8 +145,8 @@ Also built: live `POST /prescriptions/risk-check` (typo hints, score, whether a 
 **Done when:** full demo (Section 18) runs in the browser; attack suite reports every attack detected/blocked. **FEATURE FREEZE at end of Tue 27.**
 
 ## P11: Docs, deck, rehearsal (Wed 28 - Fri 30) T0
-- [ ] `README.md`: Windows setup, `.env` generation, seed, run, demo steps, disclaimer (M4)
-- [ ] `docs/architecture.md` (Mermaid: components + verify flow), `threat_model.md`, `evaluation.md`, `assumptions.md` (all)
+- [x] `README.md`: Windows setup, `.env` generation, seed, run, demo steps, disclaimer (M4)
+- [x] `docs/architecture.md` (Mermaid: components + verify flow), `threat_model.md`, `evaluation.md`, `assumptions.md` (all)
 - [ ] Fresh-clone install test on a clean machine: demo in < 10 min (M4)
 - [ ] Deck (~13 slides, Section 19) with attack-suite and evaluation slides (all)
 - [ ] Rehearsal 1 (Thu 29) and rehearsal 2 (Fri 30); backup demo video recorded (all)
