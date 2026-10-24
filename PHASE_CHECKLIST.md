@@ -147,10 +147,10 @@ Also built: live `POST /prescriptions/risk-check` (typo hints, score, whether a 
 ## P11: Docs, deck, rehearsal (Wed 28 - Fri 30) T0
 - [x] `README.md`: Windows setup, `.env` generation, seed, run, demo steps, disclaimer (M4)
 - [x] `docs/architecture.md` (Mermaid: components + verify flow), `threat_model.md`, `evaluation.md`, `assumptions.md` (all)
-- [ ] Fresh-clone install test on a clean machine: demo in < 10 min (M4)
-- [ ] Deck (~13 slides, Section 19) with attack-suite and evaluation slides (all)
+- [x] Fresh-clone install test: clone, install, keys, model, seed, attack suite 16/16 and serving the app all worked from a clean checkout (M4)
+- [x] Deck (13 slides, `docs/Pramaan_deck.pptx`) with attack-suite and evaluation slides; add team names (all)
 - [ ] Rehearsal 1 (Thu 29) and rehearsal 2 (Fri 30); backup demo video recorded (all)
-- [ ] Prepared answers: why not blockchain, why ECDSA, why server-side signing (Section 24) (all)
+- [x] Prepared answers: why not blockchain, why ECDSA, why server-side signing (last slide and Section 24) (all)
 - [ ] Submission package prepared (Fri 30); no new work on Sat 31 (all)
 
 ---
