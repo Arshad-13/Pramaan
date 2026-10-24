@@ -233,7 +233,8 @@ def test_a_burst_of_prescriptions_from_one_doctor_adds_points():
 
 def test_the_anomaly_term_scales_to_forty_points_and_removes_the_warning():
     result = assess([med()], anomaly_score=0.5)
-    assert result.score == 20 and result.warnings == []
+    assert result.score == 0 and result.warnings == []  # a typical prescription adds nothing
+    assert assess([med()], anomaly_score=0.75).score == 20
     assert assess([med()], anomaly_score=1.0).score == 40
     assert assess([med()], anomaly_score=7.0).score == 40  # clamped
     assert assess([med()], anomaly_score=-1.0).score == 0
