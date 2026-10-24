@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import APIRouter, FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -22,6 +23,23 @@ from app.errors import ServiceError
 from app.routers import admin, auth, keys, prescriptions, verify
 
 logger = logging.getLogger("pramaan")
+
+# Scripts only from our own origin; styles allow inline because the UI sets style attributes.
+CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; "
+    "worker-src 'self' blob:; media-src 'self' blob:; object-src 'none'; base-uri 'none'; "
+    "form-action 'self'; frame-ancestors 'none'"
+)
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Content-Security-Policy": CONTENT_SECURITY_POLICY,
+    "Permissions-Policy": "camera=(self), microphone=(), geolocation=(), payment=()",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Cross-Origin-Resource-Policy": "same-origin",
+}
 
 FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
@@ -88,11 +106,33 @@ def create_app(frontend_dist: Path = FRONTEND_DIST) -> FastAPI:
     )
     app.include_router(build_api_router())
 
+    origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
+        allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
+    )
+
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        response = await call_next(request)
+        for name, value in SECURITY_HEADERS.items():
+            response.headers.setdefault(name, value)
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"  # never keep records in a shared cache
+        if settings.cookie_secure:
+            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+        return response
+
     @app.exception_handler(ServiceError)
     async def service_error_handler(_request: Request, exc: ServiceError) -> JSONResponse:
-        headers = {"WWW-Authenticate": "Bearer"} if exc.status_code == 401 else None
+        headers = dict(exc.headers)
+        if exc.status_code == 401:
+            headers["WWW-Authenticate"] = "Bearer"
         body = {"detail": exc.message, **exc.extra}
-        return JSONResponse(body, status_code=exc.status_code, headers=headers)
+        return JSONResponse(body, status_code=exc.status_code, headers=headers or None)
 
     _mount_frontend(app, frontend_dist)
     return app

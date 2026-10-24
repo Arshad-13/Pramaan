@@ -15,6 +15,7 @@ class ServiceError(Exception):
         super().__init__(detail or self.detail)
         self.message = detail or self.detail
         self.extra = extra or {}  # additional JSON fields for the response body
+        self.headers: dict[str, str] = {}  # additional response headers
 
 
 class AuthFailed(ServiceError):
@@ -78,3 +79,13 @@ class PayloadTooLarge(ServiceError):
 class ServiceBusy(ServiceError):
     status_code = 503
     detail = "The checker is busy. Try again in a few seconds."
+
+
+class TooManyRequests(ServiceError):
+    status_code = 429
+    detail = "Too many attempts. Wait a moment and try again."
+
+    def __init__(self, retry_after: int = 60) -> None:
+        super().__init__()
+        self.headers["Retry-After"] = str(retry_after)
+        self.extra = {"retry_after": retry_after}

@@ -40,6 +40,7 @@ TEST_ENV = {
     "STORAGE_DIR": str(_TMP / "storage"),
     "ANCHOR_FILE": str(_TMP / "storage" / "anchors.jsonl"),
     "PBKDF2_ITERATIONS": "100000",  # faster tests; production default is 600000
+    "RATE_LIMIT_ENABLED": "false",  # tests sign in constantly; rate-limit tests switch it on
     "FROZEN_TIME": "",
     "DEBUG": "false",
 }

@@ -26,6 +26,7 @@ from app.schemas import (
     UserOut,
 )
 from app.services import account_service as accounts
+from app.services import events
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -115,6 +116,7 @@ def list_audit(
 @router.get("/audit/verify", response_model=AuditVerifyOut)
 def verify_audit(auditor: User = AuditorUser, db: Session = Depends(get_db)) -> dict:
     result = audit.verify_and_record(db, auditor.id, auditor.role.value)
+    events.check_audit_result(db, auditor.id, result)
     db.commit()
     return result
 

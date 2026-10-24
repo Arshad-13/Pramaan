@@ -7,7 +7,6 @@ python-multipart
 cryptography
 argon2-cffi
 PyJWT
-slowapi
 qrcode[pil]
 opencv-python-headless
 reportlab

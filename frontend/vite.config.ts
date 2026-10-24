@@ -9,6 +9,9 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: { alias: { '@': path.resolve(import.meta.dirname, 'src') } },
+  // Never inline assets as data: URIs: the production Content-Security-Policy only allows fonts
+  // from the app's own origin.
+  build: { assetsInlineLimit: 0 },
   server: {
     port: 5173,
     proxy: { '/api': { target: 'http://localhost:8000', changeOrigin: false } },

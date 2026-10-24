@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     trusted_proxy_ips: str = ""
     cookie_secure: bool = False
+    rate_limit_enabled: bool = True
+    login_rate_per_minute: int = 5  # per IP and, separately, per target account
+    verify_rate_per_minute: int = 30  # per signed-in user
+    signup_rate_per_minute: int = 10  # register and activate, per IP
 
     @property
     def master_key_bytes(self) -> bytes:

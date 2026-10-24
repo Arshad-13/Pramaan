@@ -109,7 +109,7 @@ If time runs short, cut from the bottom. **Never cut Tier 0.**
 | Crypto | `cryptography` | ECDSA, AES-GCM, PBKDF2, HMAC, SHA-256 |
 | Passwords | `argon2-cffi` | argon2id |
 | Auth tokens | `PyJWT` | HS256, always `algorithms=["HS256"]` on decode |
-| Rate limiting | `slowapi` | custom key functions (Section 8.4) |
+| Rate limiting | small in-memory sliding-window limiter (`core/ratelimit.py`) | per-IP and per-account keys that a decorator library cannot see (Section 8.4) |
 | QR create | `qrcode[pil]` | error correction M |
 | QR decode + CV | `opencv-python-headless` | prefer `cv2.QRCodeDetectorAruco` (OpenCV >= 4.8), fall back to `QRCodeDetector` |
 | PDF create | `reportlab` | deterministic layout from `pdf_layout.py` |
@@ -135,7 +135,6 @@ python-multipart
 cryptography
 argon2-cffi
 PyJWT
-slowapi
 qrcode[pil]
 opencv-python-headless
 reportlab
@@ -513,7 +512,7 @@ INSERT INTO dispenses (rx_id, fill_no, pharmacist_id, ts) VALUES (:id, :fills_us
 - If the patient has no account, the doctor sets `require_pin=false` and the pharmacist must tick an explicit "patient identity checked" box (recorded in the audit entry).
 
 ### 8.4 Rate limiting and alerting (`events.py`)
-- `slowapi`: login `5/minute` per IP **and** per target account; verify endpoints `30/minute` per user (custom `key_func` reading the JWT subject); PIN attempts as above.
+- In-memory sliding-window limiter (`slowapi` was dropped: the per-account key needs the request body): login `5/minute` per IP **and** per target account; verify endpoints `30/minute` per user (custom `key_func` reading the JWT subject); PIN attempts as above.
 - **Real client IP:** the browser calls FastAPI directly (same origin), so the peer address is the real client. `X-Forwarded-For` is honoured **only** if the immediate peer is listed in `TRUSTED_PROXY_IPS` (empty by default).
 - Alert rules (write a `security_events` row + an audit `SECURITY_ALERT` entry):
   - >= 5 failed verifications (TAMPERED / NOT_FOUND / INVALID_QR) by one pharmacist in 10 minutes => HIGH
@@ -1113,6 +1112,8 @@ State these honestly in the deck.
 - Drug, dose and interaction data are small demo datasets, not clinically validated.
 - AI metrics come from synthetic data and show the method, not real-world accuracy.
 - Local demo has no TLS, no HSM, SQLite is single-writer, account metadata is not encrypted.
+- Rate-limit counters live in the memory of one server process (right for this demo; several workers would need a shared store).
+- Dispensing re-checks the QR code, not the uploaded page: a pharmacist who ignores a TAMPERED upload verdict could still dispense against the genuine QR (the attempt is audited).
 - Server-side verification is needed for one-time-use; the QR alone cannot prevent reuse offline.
 - Not integrated with any hospital, pharmacy, or national health system.
 - Indian regulatory references (Schedule H/H1/X, DPDP Act 2023, IT Act e-signatures, NMC registration) are illustrative and not legal advice.

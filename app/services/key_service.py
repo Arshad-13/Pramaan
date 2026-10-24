@@ -33,7 +33,8 @@ from app.core.security import (
     verify_password,
 )
 from app.errors import BadRequest, Forbidden, Locked
-from app.models import DoctorKey, KeyStatus, User
+from app.models import DoctorKey, KeyStatus, Severity, User
+from app.services import events
 
 
 def active_key(db: Session, doctor: User) -> DoctorKey:
@@ -85,6 +86,14 @@ def unlock_active_key(
                 db, doctor.id, doctor.role.value, "SIGN_LOCKED", doctor.public_id,
                 {"key_id": key.key_id, "minutes": settings.lockout_minutes},
             )  # fmt: skip
+            events.record_event(
+                db,
+                event_type="SIGNING_LOCKED",
+                severity=Severity.MEDIUM,
+                user_id=doctor.id,
+                ip=None,
+                details={"key_id": key.key_id, "minutes": settings.lockout_minutes},
+            )
         db.commit()  # keep the counter and audit entries even though the request fails
         raise Forbidden("Could not unlock your signing key.") from None
 

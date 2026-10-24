@@ -68,6 +68,7 @@ PRECEDENCE = (
     "VALID",
 )
 UPLOAD_SLOTS = threading.BoundedSemaphore(2)  # image checks are CPU heavy: at most 2 at once
+MULTI_PHARMACY_POINTS = 15
 PIN_ATTEMPT_LIMIT = 3
 PIN_ATTEMPT_WINDOW_MINUTES = 5
 
@@ -129,7 +130,7 @@ def _parse_iso_z(value: str) -> datetime | None:
 # --- the decision pipeline ---------------------------------------------------
 
 
-def evaluate(db: Session, qr_string: str) -> Evaluation:
+def evaluate(db: Session, qr_string: str, scanner_id: int | None = None) -> Evaluation:
     try:
         parsed = parse_qr(qr_string)
     except QRFormatError:
@@ -251,6 +252,11 @@ def evaluate(db: Session, qr_string: str) -> Evaluation:
         ev.risk_flags = list(json.loads(rx.risk_flags))
     except ValueError:
         ev.risk_flags = []
+    # Verify-time signal: the same prescription shown to three or more different pharmacists.
+    scanners = events.distinct_scanners(db, rx.id) | ({scanner_id} if scanner_id else set())
+    if len(scanners) >= events.MULTI_PHARMACY_THRESHOLD:
+        ev.risk_flags = [*ev.risk_flags, "MULTI_PHARMACY_SCANS"]
+        ev.risk_score = min(100, ev.risk_score + MULTI_PHARMACY_POINTS)
     if ev.risk_score >= get_settings().risk_threshold:
         reasons.append("RISK_ABOVE_THRESHOLD")
 
@@ -278,6 +284,8 @@ def _risk_explanations(ev: Evaluation) -> list[str]:
     for flag in ev.risk_flags:
         if flag in by_flag:
             messages.extend(by_flag[flag])
+        elif flag == "MULTI_PHARMACY_SCANS":
+            messages.append("Several different pharmacists have scanned this prescription.")
         elif flag == "DOCTOR_BURST":
             messages.append(
                 "Many prescriptions were issued from this doctor's account at that time."
@@ -340,6 +348,8 @@ def _record_attempt(db: Session, pharmacist: User, ev: Evaluation, ip: str | Non
         )
     )
     db.flush()
+    if rx_id:
+        events.check_multi_pharmacy(db, rx_id, pharmacist.id, ip)
     failed = ev.result in events.FAILURE_RESULTS
     audit.append(
         db,
@@ -367,7 +377,7 @@ def _record_attempt(db: Session, pharmacist: User, ev: Evaluation, ip: str | Non
 
 
 def verify_qr(db: Session, pharmacist: User, qr_string: str, ip: str | None = None) -> VerifyOut:
-    ev = evaluate(db, qr_string)
+    ev = evaluate(db, qr_string, pharmacist.id)
     _record_attempt(db, pharmacist, ev, ip)
     db.commit()
     return _to_out(ev)
@@ -413,7 +423,7 @@ def verify_upload(
             ev = Evaluation("INVALID_QR", ["NO_QR_IN_FILE"])
         else:
             qr_string = found[0]
-            ev = evaluate(db, qr_string)
+            ev = evaluate(db, qr_string, pharmacist.id)
             ev.qr_string = qr_string
             if ev.authentic and ev.payload is not None and ev.rx is not None:
                 report = check_content(
@@ -488,7 +498,7 @@ def dispense(
     ip: str | None = None,
 ) -> dict[str, Any]:
     """Re-verify, check the patient's consent, then consume one fill atomically."""
-    ev = evaluate(db, qr_string)
+    ev = evaluate(db, qr_string, pharmacist.id)
     if ev.parsed is not None and ev.parsed.rx_id != rx_id:
         raise BadRequest("This code belongs to a different prescription.")
     if ev.result != "VALID" or ev.rx is None:

@@ -7,6 +7,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
+from app.core.net import client_ip
+from app.core.ratelimit import limiter
 from app.core.uploads import MAX_BYTES
 from app.db import get_db
 from app.deps import require_role
@@ -20,7 +23,12 @@ PharmacistUser = Depends(require_role(Role.pharmacist))
 
 
 def _ip(request: Request) -> str | None:
-    return request.client.host if request.client else None
+    return client_ip(request)
+
+
+def _limit(user: User) -> None:
+    """Verification and dispensing share one budget per signed-in user."""
+    limiter.check(f"verify:user:{user.id}", get_settings().verify_rate_per_minute)
 
 
 @router.post("/verify/qr", response_model=VerifyOut)
@@ -30,6 +38,7 @@ def verify_qr(
     pharmacist: User = PharmacistUser,
     db: Session = Depends(get_db),
 ) -> VerifyOut:
+    _limit(pharmacist)
     return verification.verify_qr(db, pharmacist, data.qr_string, _ip(request))
 
 
@@ -40,6 +49,7 @@ def verify_upload(
     pharmacist: User = PharmacistUser,
     db: Session = Depends(get_db),
 ) -> VerifyOut:
+    _limit(pharmacist)
     data = file.file.read(MAX_BYTES + 1)  # never read more than one byte past the limit
     return verification.verify_upload(db, pharmacist, data, _ip(request))
 
@@ -52,6 +62,7 @@ def dispense(
     pharmacist: User = PharmacistUser,
     db: Session = Depends(get_db),
 ) -> dict:
+    _limit(pharmacist)
     return verification.dispense(
         db,
         pharmacist,

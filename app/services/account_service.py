@@ -44,9 +44,11 @@ from app.models import (
     DoctorKey,
     KeyStatus,
     Role,
+    Severity,
     User,
 )
 from app.schemas import RegisterIn
+from app.services import events
 
 ACTIVATION_TOKEN_HOURS = 24
 _PATIENT_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ23456789"  # no 0/O/1/I/L: easy to read aloud
@@ -122,7 +124,7 @@ def _fail(db: Session, user: User | None, reason: str) -> AuthFailed:
     return AuthFailed()
 
 
-def authenticate(db: Session, email: str, password: str) -> User:
+def authenticate(db: Session, email: str, password: str, ip: str | None = None) -> User:
     settings = get_settings()
     now = clock.now_utc()
     user = db.scalar(select(User).where(User.email == email))
@@ -150,6 +152,17 @@ def authenticate(db: Session, email: str, password: str) -> User:
                 db, user.id, user.role.value, "ACCOUNT_LOCKED", user.public_id,
                 {"minutes": settings.lockout_minutes},
             )  # fmt: skip
+            events.record_event(
+                db,
+                event_type="FAILED_LOGINS",
+                severity=Severity.MEDIUM,
+                user_id=user.id,
+                ip=ip,
+                details={
+                    "failures": user.failed_logins,
+                    "locked_minutes": settings.lockout_minutes,
+                },
+            )
         raise _fail(db, user, "BAD_PASSWORD")
 
     user.failed_logins = 0

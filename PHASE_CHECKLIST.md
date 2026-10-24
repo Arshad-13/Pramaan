@@ -123,12 +123,12 @@ Also built: live `POST /prescriptions/risk-check` (typo hints, score, whether a 
 **Done when:** metrics and figures generated; swapped model file rejected.
 
 ## P9: Hardening and patient consent (Mon 26) T1
-- [ ] slowapi limits: login 5/min per IP and account; verify 30/min per user (M2)
-- [ ] Upload validation, security headers, strict CSP, docs off unless `DEBUG` (M2)
-- [ ] All alert rules from Section 8.4 and `/admin/security-events` (M2)
+- [x] Rate limits (own sliding-window limiter, `slowapi` dropped): login 5/min per IP and account; verify 30/min per user (M2)
+- [x] Upload validation, security headers, strict CSP, docs off unless `DEBUG` (M2)
+- [x] All alert rules from Section 8.4 and `/admin/security-events` (M2)
 - [x] Patient PIN: `/prescriptions/{id}/pin`, dispense requires PIN, 3-try lock (M1, M2) (done in P5)
-- [ ] `scripts/rotate_master_key.py` re-wraps DEKs; PDFs still readable (M1)
-- [ ] bandit clean of high findings; pip-audit clean (M2)
+- [x] `scripts/rotate_master_key.py` re-wraps DEKs; PDFs still readable (M1)
+- [x] bandit clean of high findings; pip-audit clean (M2)
 - [x] React: PIN ring for patients, PIN field on dispense (M4) (done in P5)
 
 **Done when:** 6th rapid login gets 429; 5 failed verifications create a HIGH event; PIN-less dispense of protected rx fails; KEK rotation keeps PDFs readable.
