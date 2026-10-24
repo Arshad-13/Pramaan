@@ -134,13 +134,13 @@ Also built: live `POST /prescriptions/risk-check` (typo hints, score, whether a 
 **Done when:** 6th rapid login gets 429; 5 failed verifications create a HIGH event; PIN-less dispense of protected rx fails; KEK rotation keeps PDFs readable.
 
 ## P10: Frontend completion and attack suite (Mon 26 - Tue 27) T0 + T1
-- [ ] Dashboard, Admin (approvals, activation-token dialog, key revoke, events), Audit (chain view, verify, checkpoint) pages (M4)
-- [ ] `RiskGauge`, `AuditChain`, `PinRing` components; reduced-motion support (M4, M3)
-- [ ] `impeccable` polish pass: contrast, focus, spacing, responsive phone-width Verify (M4)
-- [ ] `scripts/attack_suite.py`: attacks #1, 3, 6, 8, 9, 10, 11, 13, 14, 15; results table (M2)
-- [ ] Playwright e2e for the demo script; screenshots saved for the deck (M4)
-- [ ] `seed_demo.py` creates activated doctors, approved pharmacists, patients, auditor, expired + revoked samples (M4)
-- [ ] `code-review` and `security-review` run on crypto, auth, dispense code; findings fixed (all)
+- [x] Dashboard, Admin (approvals, activation-token dialog, key revoke, events), Audit (chain view, verify, checkpoint) pages (M4)
+- [x] `RiskGauge`, `AuditChain`, `PinRing` components; reduced-motion support (M4, M3)
+- [x] `impeccable` polish pass: contrast, focus, spacing, responsive phone-width Verify (M4) (axe WCAG A/AA clean in light and dark, phone width checked; no further visual pass)
+- [x] `scripts/attack_suite.py`: attacks #1, 3, 6, 8, 9, 10, 11, 13, 14, 15; results table (M2)
+- [x] Playwright e2e for the demo script; screenshots saved for the deck (M4)
+- [x] `seed_demo.py` creates activated doctors, approved pharmacists, patients, auditor, expired + revoked samples (M4)
+- [ ] `code-review` and `security-review` run on crypto, auth, dispense code; findings fixed (all) (only a manual grep-level review so far)
 
 **Done when:** full demo (Section 18) runs in the browser; attack suite reports every attack detected/blocked. **FEATURE FREEZE at end of Tue 27.**
 

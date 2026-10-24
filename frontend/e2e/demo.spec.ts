@@ -217,8 +217,8 @@ test('6. no serious accessibility violations on the main screens, in light and d
   await audit(auditor, 'audit log')
 
   // Dark theme: the same checks (colour contrast is where themes usually go wrong).
-  await auditor.getByRole('button', { name: /dark/i }).first().click()
+  await auditor.getByRole('radio', { name: 'Dark theme' }).first().click()
   await audit(auditor, 'audit log (dark)')
-  await pharmacist.getByRole('button', { name: /dark/i }).first().click()
+  await pharmacist.getByRole('radio', { name: 'Dark theme' }).first().click()
   await audit(pharmacist, 'verify result (dark)')
 })
