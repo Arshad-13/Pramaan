@@ -61,13 +61,13 @@ export function RxPreview(props: RxPreviewProps) {
 
         <p className="mt-2.5 min-h-[1.4em] font-bold">
           {props.patientName ? patientLine(props.patientName, props.ageYears) : (
-            <span className="font-normal text-black/40">Patient: choose a patient</span>
+            <span className="font-normal text-black/60">Patient: choose a patient</span>
           )}
         </p>
 
         <table className="mt-2 w-full table-fixed border-collapse">
           <thead>
-            <tr className="text-left text-[0.8em] tracking-wide text-black/55">
+            <tr className="text-left text-[0.8em] tracking-wide text-black/60">
               <th className="w-[38%] border-b border-black/20 py-1 font-bold">MEDICINE</th>
               <th className="w-[16%] border-b border-black/20 py-1 font-bold">DOSE</th>
               <th className="w-[22%] border-b border-black/20 py-1 font-bold">FREQUENCY</th>
@@ -77,7 +77,7 @@ export function RxPreview(props: RxPreviewProps) {
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={4} className="py-2 text-black/40">
+                <td colSpan={4} className="py-2 text-black/60">
                   Medicines you add appear here.
                 </td>
               </tr>
@@ -105,7 +105,7 @@ export function RxPreview(props: RxPreviewProps) {
             <div className="grid size-[4.5em] place-items-center border border-dashed border-black/30 text-black/35">
               <QrCode className="size-[2.4em]" aria-hidden="true" />
             </div>
-            <p className="mt-0.5 text-[0.7em] text-black/50">Scan with Pramaan to verify</p>
+            <p className="mt-0.5 text-[0.7em] text-black/65">Scan with Pramaan to verify</p>
           </div>
         </div>
       </div>

@@ -2,6 +2,7 @@
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
+import { configDefaults } from 'vitest/config'
 import { defineConfig } from 'vite'
 
 // Dev: Vite on :5173 proxies /api to FastAPI on :8000 so the browser sees one origin
@@ -20,5 +21,6 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     globals: false,
+    exclude: [...configDefaults.exclude, 'e2e/**'],
   },
 })

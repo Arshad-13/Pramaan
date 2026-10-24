@@ -56,9 +56,9 @@ export function VerifiedRecord({ result }: { result: VerifyResult }) {
             {result.medicines.map((m, i) => (
               <tr key={i}>
                 <td className="px-5 py-2.5 font-medium">{m.name}</td>
-                <td className="px-3 py-2.5">{m.dose_mg} mg</td>
+                <td className="whitespace-nowrap px-3 py-2.5">{m.dose_mg} mg</td>
                 <td className="px-3 py-2.5">{m.frequency}</td>
-                <td className="px-5 py-2.5">{m.duration_days} days</td>
+                <td className="whitespace-nowrap px-5 py-2.5">{m.duration_days} days</td>
               </tr>
             ))}
           </tbody>

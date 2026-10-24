@@ -213,3 +213,24 @@ def test_a_revoked_prescription_stays_revoked_when_uploaded(w, issued):
     body = ok(upload(w, pdf))
     assert body["result"] == "REVOKED"
     assert body["can_dispense"] is False
+
+
+def test_a_tampered_upload_blocks_dispensing_by_that_pharmacist_only(w, issued):
+    rx_id, pdf = issued
+    payload = forged_payload(w, rx_id)
+    forged = samples.to_png(samples.edit_medicine(samples.rasterize(pdf), payload, 0, dose_mg=800))
+    assert ok(upload(w, forged))["result"] == "TAMPERED"
+    pin = w.client.get(f"/api/prescriptions/{rx_id}/pin", headers=w.patient1_h).json()["pin"]
+
+    refused = dispense(w, rx_id, pin=pin)  # pharmacist A, with the genuine QR and the right PIN
+    assert refused.status_code == 409
+    assert "did not match" in refused.json()["detail"]
+    # a different pharmacist who has not seen a forged page is not held: the signed record decides
+    assert dispense(w, rx_id, pin=pin, headers=w.pharmacist_b).status_code == 200
+
+
+def test_a_genuine_upload_does_not_hold_dispensing(w, issued):
+    rx_id, pdf = issued
+    assert ok(upload(w, pdf))["result"] == "VALID"
+    pin = w.client.get(f"/api/prescriptions/{rx_id}/pin", headers=w.patient1_h).json()["pin"]
+    assert dispense(w, rx_id, pin=pin).status_code == 200

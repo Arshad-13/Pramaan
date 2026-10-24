@@ -69,6 +69,7 @@ PRECEDENCE = (
 )
 UPLOAD_SLOTS = threading.BoundedSemaphore(2)  # image checks are CPU heavy: at most 2 at once
 MULTI_PHARMACY_POINTS = 15
+CONTENT_HOLD_MINUTES = 30
 PIN_ATTEMPT_LIMIT = 3
 PIN_ATTEMPT_WINDOW_MINUTES = 5
 
@@ -78,6 +79,7 @@ _CONTENT_RESULT = {
     "HIDDEN_TEXT_OR_OVERLAY": "TAMPERED",
     "UNREADABLE_CONTENT": "REVIEW_REQUIRED",
 }
+_CONTENT_RESULT_TAMPERED = ("CONTENT_MISMATCH", "EXTRA_CONTENT", "HIDDEN_TEXT_OR_OVERLAY")
 _REASON_RESULT = {
     "DOCTOR_KEY_REVOKED": "REVOKED",
     "DOCTOR_SUSPENDED": "REVOKED",
@@ -488,6 +490,22 @@ def _check_pin(
     raise Forbidden("That PIN is not correct.")
 
 
+def _content_hold(db: Session, pharmacist: User, rx_id: str) -> bool:
+    """True if this pharmacist recently uploaded a page for this prescription that did not match
+    what the doctor signed. The QR code alone would still verify, so without this the pharmacist
+    could be talked into dispensing against a forged paper."""
+    since = clock.now_utc() - timedelta(minutes=CONTENT_HOLD_MINUTES)
+    rows = db.scalars(
+        select(VerificationAttempt.reason_codes).where(
+            VerificationAttempt.pharmacist_id == pharmacist.id,
+            VerificationAttempt.rx_id == rx_id,
+            VerificationAttempt.result == "TAMPERED",
+            VerificationAttempt.ts >= since,
+        )
+    )
+    return any(set(json.loads(codes)) & set(_CONTENT_RESULT_TAMPERED) for codes in rows)
+
+
 def dispense(
     db: Session,
     pharmacist: User,
@@ -506,6 +524,17 @@ def dispense(
         db.commit()
         raise Conflict(f"Cannot dispense: {ev.result}.")
     rx = ev.rx
+
+    if _content_hold(db, pharmacist, rx.id):
+        audit.append(
+            db, pharmacist.id, pharmacist.role.value, "RX_DISPENSE_HELD", rx.id,
+            {"hold_minutes": CONTENT_HOLD_MINUTES},
+        )  # fmt: skip
+        db.commit()
+        raise Conflict(
+            "Cannot dispense: the page you uploaded for this prescription did not match what "
+            f"the doctor signed. Ask the patient for a correct copy, or try again in {CONTENT_HOLD_MINUTES} minutes."
+        )
 
     if rx.require_pin:
         _check_pin(db, pharmacist, rx, patient_pin, ip)

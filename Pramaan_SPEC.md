@@ -1113,7 +1113,7 @@ State these honestly in the deck.
 - AI metrics come from synthetic data and show the method, not real-world accuracy.
 - Local demo has no TLS, no HSM, SQLite is single-writer, account metadata is not encrypted.
 - Rate-limit counters live in the memory of one server process (right for this demo; several workers would need a shared store).
-- Dispensing re-checks the QR code, not the uploaded page: a pharmacist who ignores a TAMPERED upload verdict could still dispense against the genuine QR (the attempt is audited).
+- Dispensing re-checks the QR code, not the page. After a TAMPERED upload verdict the same pharmacist is blocked from dispensing that prescription for 30 minutes (`RX_DISPENSE_HELD`); a different pharmacist is not, because the signed record, not the paper, decides what is dispensed.
 - Server-side verification is needed for one-time-use; the QR alone cannot prevent reuse offline.
 - Not integrated with any hospital, pharmacy, or national health system.
 - Indian regulatory references (Schedule H/H1/X, DPDP Act 2023, IT Act e-signatures, NMC registration) are illustrative and not legal advice.

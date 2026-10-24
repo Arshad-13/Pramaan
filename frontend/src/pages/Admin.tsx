@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Ban, Check, Clock, Copy, Loader2, UserPlus, X } from 'lucide-react'
+import { Ban, Check, Clock, Copy, Loader2, ShieldAlert, UserPlus, X } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
 
@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { api, ApiError } from '@/lib/api'
-import { ROLE_LABEL, type ActivationResult, type Role, type User, type UserList } from '@/lib/types'
+import { detailFacts, eventLabel } from '@/lib/audit'
+import { ROLE_LABEL, type ActivationResult, type Role, type SecurityEvent, type User, type UserList } from '@/lib/types'
 
 const ROLES: Role[] = ['doctor', 'patient', 'pharmacist', 'admin', 'auditor']
 
@@ -282,6 +283,38 @@ function People() {
   )
 }
 
+const SEVERITY_TONE = { HIGH: 'danger', MEDIUM: 'warning', LOW: 'neutral' } as const
+
+function SecurityEvents() {
+  const { data, isPending } = useQuery({
+    queryKey: ['admin', 'events'],
+    queryFn: () => api<SecurityEvent[]>('/admin/security-events?limit=25'),
+  })
+  if (isPending) return <Skeleton className="h-20 w-full max-w-3xl" />
+  if (!data?.length)
+    return <p className="rounded-lg border border-dashed border-border-strong p-5 text-sm text-muted-foreground">No security alerts so far.</p>
+  return (
+    <ul className="max-w-3xl divide-y divide-border rounded-lg border border-border bg-surface">
+      {data.map((event) => (
+        <li key={event.id} className="px-4 py-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <Badge tone={SEVERITY_TONE[event.severity]}>
+              <ShieldAlert aria-hidden="true" /> {event.severity === 'HIGH' ? 'High' : event.severity === 'MEDIUM' ? 'Medium' : 'Low'}
+            </Badge>
+            <span className="font-medium">{eventLabel(event.event_type)}</span>
+            <time className="ml-auto text-sm text-muted-foreground" dateTime={event.ts}>
+              {new Date(event.ts).toLocaleString()}
+            </time>
+          </div>
+          {detailFacts(event.details_json).length > 0 && (
+            <p className="mt-1 text-sm text-muted-foreground">{detailFacts(event.details_json).join(' · ')}</p>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export default function Admin() {
   return (
     <>
@@ -294,6 +327,9 @@ export default function Admin() {
       </Section>
       <Section title="People">
         <People />
+      </Section>
+      <Section title="Security alerts" description="Unusual activity the system noticed, newest first. Details hold counts and identifiers only, never personal data.">
+        <SecurityEvents />
       </Section>
     </>
   )

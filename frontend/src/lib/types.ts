@@ -182,3 +182,43 @@ export interface Drug {
   generic: string
   is_brand: boolean
 }
+
+/** One entry of the tamper-evident audit log (Spec Section 9). */
+export interface AuditEntry {
+  seq: number
+  ts: string
+  actor_id: number | null
+  actor_role: string | null
+  action: string
+  resource_id: string | null
+  details_json: string
+  prev_hash: string
+  entry_hash: string
+}
+
+export interface AuditPage {
+  items: AuditEntry[]
+  total: number
+}
+
+export interface AuditVerify {
+  ok: boolean
+  checked: number
+  first_bad_seq: number | null
+  checkpoint_ok: boolean
+  truncated: boolean
+  problems: string[]
+  last_seq: number
+  checkpoints: number
+  anchors: number
+}
+
+export interface SecurityEvent {
+  id: number
+  ts: string
+  user_id: number | null
+  ip: string | null
+  event_type: string
+  severity: 'LOW' | 'MEDIUM' | 'HIGH'
+  details_json: string
+}

@@ -35,3 +35,4 @@ samples/
 models/
 data/synthetic/
 .env.bak
+.e2e/

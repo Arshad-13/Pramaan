@@ -1,5 +1,4 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ScrollText } from 'lucide-react'
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Toaster } from 'sonner'
@@ -9,12 +8,12 @@ import { RequireAuth } from '@/components/RequireAuth'
 import { AuthProvider } from '@/lib/auth'
 import Dashboard from '@/pages/Dashboard'
 import Login from '@/pages/Login'
-import Placeholder from '@/pages/Placeholder'
 
 // Less-visited pages load on demand to keep the first load small.
 const Activate = lazy(() => import('@/pages/Activate'))
 const Register = lazy(() => import('@/pages/Register'))
 const Admin = lazy(() => import('@/pages/Admin'))
+const Audit = lazy(() => import('@/pages/Audit'))
 const DesignSystem = lazy(() => import('@/pages/DesignSystem'))
 const NewPrescription = lazy(() => import('@/pages/NewPrescription'))
 const MyPrescriptions = lazy(() => import('@/pages/MyPrescriptions'))
@@ -78,12 +77,7 @@ export default function App() {
                 path="audit"
                 element={
                   <RequireAuth roles={['auditor']}>
-                    <Placeholder
-                      title="Audit log"
-                      icon={ScrollText}
-                      phase="Phase 10"
-                      description="Every security-relevant action, chained so that any edit or deletion is detected."
-                    />
+                    <Audit />
                   </RequireAuth>
                 }
               />
