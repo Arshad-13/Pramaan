@@ -6,8 +6,10 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
 import { AuthLayout } from '@/components/AuthLayout'
+import { DemoLogins } from '@/components/DemoAccounts'
 import { Field } from '@/components/Field'
 import { describe } from '@/lib/aria'
+import type { DemoAccount } from '@/lib/demoAccounts'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ApiError } from '@/lib/api'
@@ -30,8 +32,15 @@ export default function Login() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<Values>({ resolver: zodResolver(schema) })
+
+  function fillDemo(account: DemoAccount) {
+    setFormError(null)
+    setValue('email', account.email, { shouldValidate: true })
+    setValue('password', account.password, { shouldValidate: true })
+  }
 
   if (user) return <Navigate to={state?.from ?? '/'} replace />
 
@@ -93,6 +102,8 @@ export default function Login() {
           Sign in
         </Button>
       </form>
+
+      <DemoLogins onPick={fillDemo} />
 
       <p className="mt-6 text-sm text-muted-foreground">
         New patient or pharmacist?{' '}

@@ -2,7 +2,6 @@ import {
   FilePlus2,
   Files,
   LayoutDashboard,
-  Palette,
   ScanLine,
   ScrollText,
   UsersRound,
@@ -34,11 +33,7 @@ export const NAV: NavItem[] = [
   { to: '/audit', label: 'Audit log', icon: ScrollText, roles: ['auditor'] },
 ]
 
-const DEV_NAV: NavItem[] = import.meta.env.DEV
-  ? [{ to: '/design', label: 'Design system', icon: Palette }]
-  : []
-
 /** Navigation entries a role may see. The server enforces access; this only hides dead links. */
 export function navFor(role: Role | undefined): NavItem[] {
-  return [...NAV, ...DEV_NAV].filter((item) => !item.roles || (role && item.roles.includes(role)))
+  return NAV.filter((item) => !item.roles || (role && item.roles.includes(role)))
 }

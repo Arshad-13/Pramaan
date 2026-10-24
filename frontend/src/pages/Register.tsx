@@ -6,8 +6,10 @@ import { Link, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
 import { AuthLayout } from '@/components/AuthLayout'
+import { DemoSignups } from '@/components/DemoAccounts'
 import { Field } from '@/components/Field'
 import { describe } from '@/lib/aria'
+import { demoSignup } from '@/lib/demoAccounts'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api, ApiError } from '@/lib/api'
@@ -43,6 +45,17 @@ export default function Register() {
     formState: { errors, isSubmitting },
   } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { role: 'patient' } })
   const role = useWatch({ control, name: 'role' })
+
+  function fillDemo(kind: 'patient' | 'pharmacist') {
+    const d = demoSignup(kind)
+    setFormError(null)
+    setValue('role', d.role)
+    setValue('name', d.name, { shouldValidate: true })
+    setValue('email', d.email, { shouldValidate: true })
+    setValue('password', d.password, { shouldValidate: true })
+    setValue('license_no', d.license_no ?? '', { shouldValidate: true })
+    setValue('org_name', d.org_name ?? '', { shouldValidate: true })
+  }
 
   async function onSubmit(values: Values) {
     setFormError(null)
@@ -130,6 +143,9 @@ export default function Register() {
           Create account
         </Button>
       </form>
+
+      <DemoSignups onPick={fillDemo} />
+
       <p className="mt-6 text-sm text-muted-foreground">
         Already have an account?{' '}
         <Link to="/login" className="font-medium text-foreground underline underline-offset-4">

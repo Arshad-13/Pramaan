@@ -1,6 +1,7 @@
 import { LogOut, Menu, X } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 
 import { Logo } from '@/components/Logo'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -50,8 +51,12 @@ function AccountBlock() {
         aria-label="Sign out"
         title="Sign out"
         onClick={async () => {
-          await signOut()
-          navigate('/login', { replace: true })
+          try {
+            await signOut()
+            navigate('/login', { replace: true })
+          } catch {
+            toast.error('Could not sign out. Check your connection and try again.')
+          }
         }}
         className="grid size-9 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
       >

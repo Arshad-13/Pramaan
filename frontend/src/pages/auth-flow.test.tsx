@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppShell } from '@/components/AppShell'
 import { RequireAuth } from '@/components/RequireAuth'
 import { AuthProvider } from '@/lib/auth'
+import { DEMO_ACCOUNTS } from '@/lib/demoAccounts'
 import type { User } from '@/lib/types'
 import Activate from '@/pages/Activate'
 import Login from '@/pages/Login'
@@ -114,6 +115,21 @@ describe('auth flow', () => {
     })
   })
 
+  it('fills the sign-in form from a demo account with one click', async () => {
+    fetchMock.mockResolvedValue(json(401, { detail: 'no' }))
+    renderAt('/login', <Routes><Route path="/login" element={<Login />} /></Routes>)
+    await userEvent.click(await screen.findByRole('button', { name: /Dr\. Shah/ }))
+    expect(screen.getByLabelText('Email')).toHaveValue('dr.shah@clinic.test')
+    expect(screen.getByLabelText('Password')).toHaveValue('Doctor-Login-2026')
+    await userEvent.click(screen.getByRole('button', { name: /Administrator/ }))
+    expect(screen.getByLabelText('Email')).toHaveValue('admin@pramaan.test')
+  })
+
+  it('offers one demo account for every role', () => {
+    const roles = new Set(DEMO_ACCOUNTS.map((a) => a.role))
+    expect(roles).toEqual(new Set(['admin', 'auditor', 'doctor', 'pharmacist', 'patient']))
+  })
+
   it('shows the server error and stays on the page when sign-in fails', async () => {
     fetchMock.mockImplementation(async (url: string) =>
       url === '/api/auth/login'
@@ -173,5 +189,53 @@ describe('auth flow', () => {
 
     await userEvent.click(screen.getAllByRole('button', { name: 'Sign out' })[0])
     await waitFor(() => expect(screen.getByText('Sign in page')).toBeInTheDocument())
+  })
+
+  it('stays on the real sign-in page after signing out (no bounce back to the dashboard)', async () => {
+    let signedIn = true
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/auth/me') return signedIn ? json(200, PATIENT) : json(401, { detail: 'no' })
+      if (url === '/api/auth/logout') {
+        signedIn = false
+        return json(204)
+      }
+      throw new Error(`unexpected ${url}`)
+    })
+    renderAt(
+      '/',
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route element={<RequireAuth><AppShell /></RequireAuth>}>
+          <Route index element={<h1>Home page</h1>} />
+        </Route>
+      </Routes>,
+    )
+    expect(await screen.findByText('Home page')).toBeInTheDocument()
+    await userEvent.click(screen.getAllByRole('button', { name: 'Sign out' })[0])
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+    expect(screen.queryByText('Home page')).not.toBeInTheDocument()
+  })
+
+  it('stays signed in and says so when the sign-out request cannot reach the server', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/auth/me') return json(200, PATIENT)
+      throw new TypeError('network down')
+    })
+    renderAt(
+      '/',
+      <Routes>
+        <Route path="/login" element={<h1>Sign in page</h1>} />
+        <Route element={<RequireAuth><AppShell /></RequireAuth>}>
+          <Route index element={<h1>Home page</h1>} />
+        </Route>
+      </Routes>,
+    )
+    expect(await screen.findByText('Home page')).toBeInTheDocument()
+    await userEvent.click(screen.getAllByRole('button', { name: 'Sign out' })[0])
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(screen.getByText('Home page')).toBeInTheDocument()
+    expect(screen.queryByText('Sign in page')).not.toBeInTheDocument()
   })
 })

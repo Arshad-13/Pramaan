@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api, ApiError } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
+import { DEMO_LOGINS_ENABLED, DOCTOR_SIGNING_PASSWORD } from '@/lib/demoAccounts'
 import { useDebouncedValue } from '@/lib/hooks'
 import { MAX_MEDICINES, MAX_NOTES_CHARS, FREQUENCIES } from '@/lib/rx'
 import type { Drug, IssueResult, Medicine, PatientMatch, RiskCheck } from '@/lib/types'
@@ -390,6 +391,15 @@ export default function NewPrescription() {
               <Field id="signing" label="Signing password" error={errors.signing_password?.message}>
                 <Input type="password" autoComplete="off" {...describe('signing', errors.signing_password?.message)} {...register('signing_password')} />
               </Field>
+              {DEMO_LOGINS_ENABLED && (
+                <button
+                  type="button"
+                  onClick={() => setValue('signing_password', DOCTOR_SIGNING_PASSWORD, { shouldValidate: true })}
+                  className="mt-2 text-xs font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                >
+                  Fill the demo signing password
+                </button>
+              )}
             </div>
             {formError && (
               <p role="alert" className="mt-4 rounded-md border border-danger-border bg-danger-soft px-3 py-2 text-sm text-danger">

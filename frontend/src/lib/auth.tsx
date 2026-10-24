@@ -41,10 +41,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     try {
       await api('/auth/logout', { method: 'POST' })
-    } finally {
-      queryClient.clear() // never keep another user's data around
-      queryClient.setQueryData(['me'], null)
+    } catch (error) {
+      // 401 means the session was already gone, which is the state we wanted. Anything else
+      // (offline, server error) leaves the session alive, so say so instead of pretending.
+      if (!(error instanceof ApiError && error.status === 401)) throw error
     }
+    // Mark the visitor signed out first: the mounted 'me' query must keep its observer, or the
+    // UI keeps showing the old user and the login page bounces straight back to the dashboard.
+    queryClient.setQueryData(['me'], null)
+    // Then drop everything else so no one sees another user's data.
+    queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'me' })
   }, [queryClient])
 
   const value = useMemo(() => ({ user, signIn, signOut }), [user, signIn, signOut])

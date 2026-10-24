@@ -14,7 +14,6 @@ const Activate = lazy(() => import('@/pages/Activate'))
 const Register = lazy(() => import('@/pages/Register'))
 const Admin = lazy(() => import('@/pages/Admin'))
 const Audit = lazy(() => import('@/pages/Audit'))
-const DesignSystem = lazy(() => import('@/pages/DesignSystem'))
 const NewPrescription = lazy(() => import('@/pages/NewPrescription'))
 const MyPrescriptions = lazy(() => import('@/pages/MyPrescriptions'))
 const Verify = lazy(() => import('@/pages/Verify'))
@@ -81,7 +80,6 @@ export default function App() {
                   </RequireAuth>
                 }
               />
-              {import.meta.env.DEV && <Route path="design" element={<DesignSystem />} />}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>
