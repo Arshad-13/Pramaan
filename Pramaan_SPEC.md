@@ -733,7 +733,8 @@ Create at least 40 rows.
 
 ### 11.6 Combined risk (`risk.py`)
 ```
-risk = min(100, rule_points + round(anomaly_score * 40))
+risk = min(100, rule_points + anomaly_points)
+anomaly_points = round(40 * max(0, (anomaly_score - 0.5) / 0.5))   # 0 for a typical prescription, 40 for the rarest
 ```
 | Rule | Points |
 |---|---|

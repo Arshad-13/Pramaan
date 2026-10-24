@@ -3,7 +3,8 @@
 Purpose: score how unusual a prescription looks so a doctor can double-check before signing and a
          pharmacist can see why one was flagged. This is a *safety net*, not a diagnosis: it never
          blocks issuing by itself (the doctor can confirm with a reason).
-Method : risk = min(100, rule_points + round(anomaly_score * 40)).
+Method : risk = min(100, rule_points + anomaly_points), where anomaly_points runs from 0 (a typical
+         prescription, score 0.5 or below) up to 40 (the rarest, score 1.0).
          Each distinct rule counts once (controlled substances count per medicine, capped).
          The anomaly term is 0 until the trained model exists (Phase 8); a MODEL_UNAVAILABLE
          warning says so.
@@ -30,6 +31,7 @@ CONTROLLED_POINTS_EACH = 10
 CONTROLLED_POINTS_CAP = 20
 BURST_THRESHOLD = 15  # prescriptions by one doctor in 24 hours
 ANOMALY_WEIGHT = 40
+ANOMALY_FLOOR = 0.5  # a typical prescription (the median of normal data) adds nothing
 ANOMALY_FLAG_THRESHOLD = 0.95  # percentile of normal data at which ANOMALOUS_PATTERN is flagged
 FLAG_ORDER = (
     "UNKNOWN_DRUG", "POSSIBLE_TYPO", "DOSE_ABOVE_SINGLE_MAX", "DOSE_ABOVE_DAILY_MAX",
@@ -125,7 +127,8 @@ def assess(
     if anomaly_score is None:
         warnings.append("MODEL_UNAVAILABLE")
     else:
-        anomaly_points = round(max(0.0, min(1.0, anomaly_score)) * ANOMALY_WEIGHT)
+        above = (min(1.0, anomaly_score) - ANOMALY_FLOOR) / (1.0 - ANOMALY_FLOOR)
+        anomaly_points = round(max(0.0, above) * ANOMALY_WEIGHT)
         if anomaly_score >= ANOMALY_FLAG_THRESHOLD:
             add(
                 "ANOMALOUS_PATTERN",

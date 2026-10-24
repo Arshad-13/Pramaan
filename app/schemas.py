@@ -325,6 +325,19 @@ class VerifyOut(BaseModel):
     pin_required: bool = False
 
 
+class RecentVerificationOut(BaseModel):
+    ts: datetime
+    result: str
+    rx_ref: str | None = None  # first characters of the prescription id; no personal data
+
+
+class RecentActivityOut(BaseModel):
+    verified_today: int
+    flagged_today: int
+    dispensed_today: int
+    recent: list[RecentVerificationOut]
+
+
 class DispenseIn(Strict):
     qr_string: Annotated[str, Field(min_length=1, max_length=400)]
     patient_pin: Annotated[str, Field(min_length=1, max_length=12)] | None = None

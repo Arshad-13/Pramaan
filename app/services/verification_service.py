@@ -385,6 +385,44 @@ def verify_qr(db: Session, pharmacist: User, qr_string: str, ip: str | None = No
     return _to_out(ev)
 
 
+# --- a pharmacist's own recent activity ---------------------------------------
+
+
+def recent_activity(db: Session, pharmacist: User) -> dict[str, Any]:
+    """Counts since midnight (UTC) and the latest checks, for the pharmacist's overview."""
+    now = clock.now_utc()
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    mine = VerificationAttempt.pharmacist_id == pharmacist.id
+    counts = dict(
+        db.execute(
+            select(VerificationAttempt.result, func.count())
+            .where(mine, VerificationAttempt.ts >= midnight)
+            .group_by(VerificationAttempt.result)
+        ).all()
+    )
+    verified = counts.get("VALID", 0)
+    dispensed = (
+        db.scalar(
+            select(func.count())
+            .select_from(Dispense)
+            .where(Dispense.pharmacist_id == pharmacist.id, Dispense.ts >= midnight)
+        )
+        or 0
+    )
+    rows = db.scalars(
+        select(VerificationAttempt).where(mine).order_by(VerificationAttempt.id.desc()).limit(8)
+    ).all()
+    return {
+        "verified_today": verified,
+        "flagged_today": sum(counts.values()) - verified,
+        "dispensed_today": dispensed,
+        "recent": [
+            {"ts": r.ts, "result": r.result, "rx_ref": r.rx_id[:8] if r.rx_id else None}
+            for r in rows
+        ],
+    }
+
+
 # --- upload verification -----------------------------------------------------
 
 

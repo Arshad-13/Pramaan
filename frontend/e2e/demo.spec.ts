@@ -56,6 +56,8 @@ test.describe.configure({ mode: 'serial' })
 test('1. genuine prescription: issue, verify the downloaded PDF, dispense with the patient PIN, replay is refused', async ({ browser }) => {
   // The doctor issues it through the form.
   const doctor = await signIn(browser, 'dr.shah@clinic.test', PASSWORDS.doctor, { width: 1440, height: 900 })
+  await expect(doctor.getByRole('heading', { name: /Dr\. Shah$/ })).toBeVisible()
+  await shot(doctor, '00-doctor-dashboard')
   await doctor.goto('/prescriptions/new')
   await doctor.getByLabel('Patient email').fill('sneha.rao@example.test')
   await doctor.getByRole('button', { name: 'Find' }).click()
@@ -85,6 +87,7 @@ test('1. genuine prescription: issue, verify the downloaded PDF, dispense with t
 
   // Pharmacy A uploads the PDF: Verified, then a wrong PIN, then the right one.
   const meera = await signIn(browser, 'meera@citypharm.test', PASSWORDS.pharmacist)
+  await shot(meera, '03b-pharmacist-dashboard')
   await uploadAndExpect(meera, issued, 'Verified')
   await expect(meera.getByText('Page matches what was signed')).toBeVisible()
   await shot(meera, '04-pharmacist-verified')
@@ -169,6 +172,8 @@ test('5. verification works at phone width without sideways scrolling', async ({
   await shot(page, '14-phone-verified')
 })
 
+const h1 = (page: Page) => page.getByRole('heading', { level: 1 })
+
 test('6. no serious accessibility violations on the main screens, in light and dark', async ({ browser }) => {
   const { default: AxeBuilder } = await import('@axe-core/playwright')
   const audit = async (page: Page, label: string) => {
@@ -191,6 +196,8 @@ test('6. no serious accessibility violations on the main screens, in light and d
   await audit(anonymous, 'register')
 
   const pharmacist = await signIn(browser, 'meera@citypharm.test', PASSWORDS.pharmacist)
+  await expect(h1(pharmacist)).toBeVisible()
+  await audit(pharmacist, 'pharmacist dashboard')
   await pharmacist.goto('/verify')
   await audit(pharmacist, 'verify (scan)')
   await pharmacist.getByRole('tab', { name: /Paste code/ }).click()
@@ -201,17 +208,23 @@ test('6. no serious accessibility violations on the main screens, in light and d
   await audit(pharmacist, 'verify result (tampered, outlined)')
 
   const doctor = await signIn(browser, 'dr.shah@clinic.test', PASSWORDS.doctor)
+  await expect(h1(doctor)).toBeVisible()
+  await audit(doctor, 'doctor dashboard')
   await doctor.goto('/prescriptions/new')
   await audit(doctor, 'new prescription')
   await doctor.goto('/prescriptions')
   await audit(doctor, 'my prescriptions')
 
   const admin = await signIn(browser, 'admin@pramaan.test', PASSWORDS.admin)
+  await expect(h1(admin)).toBeVisible()
+  await audit(admin, 'admin dashboard')
   await admin.goto('/admin')
   await expect(admin.getByText('Security alerts')).toBeVisible()
   await audit(admin, 'admin')
 
   const auditor = await signIn(browser, 'auditor@pramaan.test', PASSWORDS.auditor)
+  await expect(h1(auditor)).toBeVisible()
+  await audit(auditor, 'auditor dashboard')
   await auditor.goto('/audit')
   await expect(auditor.getByRole('list', { name: 'Audit log entries, newest first' })).toBeVisible()
   await audit(auditor, 'audit log')

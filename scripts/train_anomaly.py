@@ -352,7 +352,7 @@ def main() -> int:
         f"- **Unseen families** (never used for any choice): {', '.join(synthetic.FAMILIES_UNSEEN)}, "
         f"{len(by_family[synthetic.FAMILIES_UNSEEN[0]])} each.",
         "- The score is a percentile of the forest's raw score within the normal training data "
-        "(0.5 typical, 0.95 and above rare). It adds up to 40 points to the rule-based risk score; "
+        "(0.5 typical, 0.95 and above rare). It adds nothing to the rule-based risk score for a typical prescription and up to 40 points for the rarest; "
         f"a prescription reaches the review threshold ({threshold}) only when rules and model together say so.",
         "",
         "### Unseen families: ranking quality (forest score)",

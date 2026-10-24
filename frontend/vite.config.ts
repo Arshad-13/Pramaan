@@ -1,9 +1,7 @@
-/// <reference types="vitest/config" />
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
-import { configDefaults } from 'vitest/config'
-import { defineConfig } from 'vite'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 // Dev: Vite on :5173 proxies /api to FastAPI on :8000 so the browser sees one origin
 // (same as production, where FastAPI serves the built app). Cookies and CSRF behave identically.

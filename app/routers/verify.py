@@ -14,7 +14,7 @@ from app.core.uploads import MAX_BYTES
 from app.db import get_db
 from app.deps import require_role
 from app.models import Role, User
-from app.schemas import DispenseIn, DispenseOut, VerifyOut, VerifyQRIn
+from app.schemas import DispenseIn, DispenseOut, RecentActivityOut, VerifyOut, VerifyQRIn
 from app.services import verification_service as verification
 
 router = APIRouter(tags=["verification"])
@@ -29,6 +29,11 @@ def _ip(request: Request) -> str | None:
 def _limit(user: User) -> None:
     """Verification and dispensing share one budget per signed-in user."""
     limiter.check(f"verify:user:{user.id}", get_settings().verify_rate_per_minute)
+
+
+@router.get("/verify/recent", response_model=RecentActivityOut)
+def recent(pharmacist: User = PharmacistUser, db: Session = Depends(get_db)) -> dict:
+    return verification.recent_activity(db, pharmacist)
 
 
 @router.post("/verify/qr", response_model=VerifyOut)

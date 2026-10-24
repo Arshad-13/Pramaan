@@ -158,7 +158,7 @@ export default function Verify() {
             ))}
           </div>
 
-          {tab === 'scan' && <QrScanner onResult={run} />}
+          {tab === 'scan' && <QrScanner onResult={run} onFallback={setTab} />}
           {tab === 'upload' && <UploadDrop onFile={runUpload} pending={pending} />}
           {tab === 'paste' && (
             <form onSubmit={onPaste} className="space-y-3">

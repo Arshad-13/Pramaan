@@ -222,3 +222,10 @@ export interface SecurityEvent {
   severity: 'LOW' | 'MEDIUM' | 'HIGH'
   details_json: string
 }
+
+export interface RecentActivity {
+  verified_today: number
+  flagged_today: number
+  dispensed_today: number
+  recent: { ts: string; result: string; rx_ref: string | null }[]
+}

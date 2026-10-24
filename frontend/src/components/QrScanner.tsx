@@ -1,8 +1,18 @@
 import QrScannerLib from 'qr-scanner'
+import { CameraOff, FileUp, TextCursorInput } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
+import { Button } from '@/components/ui/button'
+
 /** Live camera scanner. Calls `onResult` once with the decoded text, then stops the camera. */
-export function QrScanner({ onResult }: { onResult: (text: string) => void }) {
+export function QrScanner({
+  onResult,
+  onFallback,
+}: {
+  onResult: (text: string) => void
+  /** Offered when the camera cannot be used: switch to another way of entering the code. */
+  onFallback?: (way: 'upload' | 'paste') => void
+}) {
   const video = useRef<HTMLVideoElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [starting, setStarting] = useState(true)
@@ -43,23 +53,37 @@ export function QrScanner({ onResult }: { onResult: (text: string) => void }) {
     }
   }, [])
 
+  if (error)
+    return (
+      <div className="max-w-md rounded-lg border border-border-strong bg-surface p-5">
+        <CameraOff className="size-6 text-muted-foreground" aria-hidden="true" />
+        <p role="alert" className="mt-3 text-sm text-foreground">
+          {error}
+        </p>
+        {onFallback && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button type="button" onClick={() => onFallback('upload')}>
+              <FileUp aria-hidden="true" /> Upload a photo or PDF
+            </Button>
+            <Button type="button" variant="outline" onClick={() => onFallback('paste')}>
+              <TextCursorInput aria-hidden="true" /> Paste the code
+            </Button>
+          </div>
+        )}
+      </div>
+    )
+
   return (
     <div>
       <div className="relative aspect-[4/3] w-full max-w-md overflow-hidden rounded-lg border border-border-strong bg-black">
         <video ref={video} muted playsInline className="size-full object-cover" aria-label="Camera view" />
-        {starting && !error && (
+        {starting && (
           <p role="status" className="absolute inset-0 grid place-items-center text-sm text-white/80">
             Starting camera...
           </p>
         )}
       </div>
-      {error ? (
-        <p role="alert" className="mt-3 max-w-md rounded-md border border-warning-border bg-warning-soft px-3 py-2 text-sm text-warning">
-          {error}
-        </p>
-      ) : (
-        <p className="mt-3 text-sm text-muted-foreground">Hold the prescription's QR code inside the frame.</p>
-      )}
+      <p className="mt-3 text-sm text-muted-foreground">Hold the prescription's QR code inside the frame.</p>
     </div>
   )
 }

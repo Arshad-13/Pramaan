@@ -520,3 +520,19 @@ def test_stored_prescriptions_are_untouched_by_reading_the_pin(w):
             db.get(Prescription, rx_id) is not None
             and db.scalars(select(SecurityEvent)).first() is None
         )
+
+
+def test_recent_activity_counts_only_my_checks_today(w):
+    qr = qr_for(issue(w))
+    verify(w, qr)
+    verify(w, "PRM2.not-a-real-code")
+    verify(w, qr, w.pharmacist_b)
+    body = w.client.get("/api/verify/recent", headers=w.pharmacist_a).json()
+    assert (
+        body["verified_today"] == 1 and body["flagged_today"] == 1 and body["dispensed_today"] == 0
+    )
+    assert [r["result"] for r in body["recent"]] == ["INVALID_QR", "VALID"]  # newest first
+    assert body["recent"][1]["rx_ref"] and len(body["recent"][1]["rx_ref"]) == 8
+    assert body["recent"][0]["rx_ref"] is None
+    other = w.client.get("/api/verify/recent", headers=w.pharmacist_b).json()
+    assert other["verified_today"] == 1 and other["flagged_today"] == 0
