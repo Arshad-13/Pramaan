@@ -112,13 +112,13 @@ Also built: live `POST /prescriptions/risk-check` (typo hints, score, whether a 
 **Done when:** genuine digital => VALID 100%; genuine photos never TAMPERED (>= 95% VALID/REVIEW); single-digit edits => TAMPERED >= 95% with correct zone; overlay and extra-medicine attacks => TAMPERED.
 
 ## P8: Anomaly model and evaluation (Sun 25 - Mon 26) T1
-- [ ] `features.py` (10 features incl. per-doctor baselines) shared by training and inference (M3)
-- [ ] `generate_synthetic_data.py`: normals + tuning anomaly families + unseen test family (M3)
-- [ ] `train_anomaly.py`: Isolation Forest; ROC-AUC, PR-AUC, P/R/F1, ablation, IF vs LOF; figures (M3)
-- [ ] Percentile-normalised score; per-feature explanations (M3)
-- [ ] `model_io.py`: signed model file, verify before `joblib.load` (M3, M1)
-- [ ] Missing/unsigned model => rules-only + warning + HIGH event, no crash (M3)
-- [ ] `docs/evaluation.md` states clearly that data is synthetic (M3)
+- [x] `features.py` (10 features incl. per-doctor baselines) shared by training and inference (M3)
+- [x] `generate_synthetic_data.py`: normals + tuning anomaly families + unseen test family (M3)
+- [x] `train_anomaly.py`: Isolation Forest; ROC-AUC, PR-AUC, P/R/F1, ablation, IF vs LOF; figures (M3)
+- [x] Percentile-normalised score; per-feature explanations (M3)
+- [x] `model_io.py`: signed model file, verify before `joblib.load` (M3, M1); run `python scripts/train_anomaly.py` after `gen_keys.py` to create it
+- [x] Missing/unsigned model => rules-only + warning + HIGH event, no crash (M3)
+- [x] `docs/evaluation.md` states clearly that data is synthetic (M3)
 
 **Done when:** metrics and figures generated; swapped model file rejected.
 

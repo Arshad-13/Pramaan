@@ -36,6 +36,7 @@ TEST_ENV = {
     "MASTER_KEY": _key(b"M"),
     "AUDIT_KEY": _key(b"A"),
     "AUDIT_SIGNING_KEY_PATH": str(_PEM),
+    "ANOMALY_MODEL_PATH": str(_TMP / "models" / "iforest.joblib"),  # absent unless a test makes one
     "STORAGE_DIR": str(_TMP / "storage"),
     "ANCHOR_FILE": str(_TMP / "storage" / "anchors.jsonl"),
     "PBKDF2_ITERATIONS": "100000",  # faster tests; production default is 600000

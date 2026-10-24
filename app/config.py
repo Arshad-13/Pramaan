@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     master_key_version: int = 1
     audit_key: str  # base64 of 32 bytes: HMAC key for audit chain + patient PIN
     audit_signing_key_path: str = "./secrets/audit_signing.pem"
+    anomaly_model_path: str = "./models/iforest.joblib"
 
     access_token_minutes: int = 30
     pbkdf2_iterations: int = 600_000

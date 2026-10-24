@@ -30,6 +30,7 @@ CONTROLLED_POINTS_EACH = 10
 CONTROLLED_POINTS_CAP = 20
 BURST_THRESHOLD = 15  # prescriptions by one doctor in 24 hours
 ANOMALY_WEIGHT = 40
+ANOMALY_FLAG_THRESHOLD = 0.95  # percentile of normal data at which ANOMALOUS_PATTERN is flagged
 FLAG_ORDER = (
     "UNKNOWN_DRUG", "POSSIBLE_TYPO", "DOSE_ABOVE_SINGLE_MAX", "DOSE_ABOVE_DAILY_MAX",
     "CONTROLLED_SUBSTANCE", "DUPLICATE_THERAPY", "DOCTOR_BURST", "ANOMALOUS_PATTERN",
@@ -66,6 +67,8 @@ def assess(
     doctor_rx_last_24h: int = 0,
     issue_hour: int = 12,
     anomaly_score: float | None = None,
+    anomaly_explanations: list[str] | None = None,
+    model_features: dict[str, Any] | None = None,
     catalog: drug_match.Catalog | None = None,
 ) -> RiskResult:
     catalog = catalog or drug_match.load_catalog()
@@ -123,8 +126,16 @@ def assess(
         warnings.append("MODEL_UNAVAILABLE")
     else:
         anomaly_points = round(max(0.0, min(1.0, anomaly_score)) * ANOMALY_WEIGHT)
+        if anomaly_score >= ANOMALY_FLAG_THRESHOLD:
+            add(
+                "ANOMALOUS_PATTERN",
+                "This prescription is unusual compared with normal prescribing."
+                + "".join(f" {text}" for text in (anomaly_explanations or [])),
+            )
 
-    rule_points = sum(POINTS[f] for f in flag_messages if f in POINTS)
+    rule_points = sum(
+        POINTS[f] for f in flag_messages if f in POINTS
+    )  # the anomaly term is separate
     if controlled_count:
         rule_points += min(CONTROLLED_POINTS_CAP, CONTROLLED_POINTS_EACH * controlled_count)
     flags = [f for f in FLAG_ORDER if f in flag_messages]
@@ -138,6 +149,10 @@ def assess(
         "doctor_rx_last_24h": doctor_rx_last_24h,
         "issue_hour": issue_hour,
     }
+    if model_features:
+        features = {**features, **model_features}
+        if anomaly_score is not None:
+            features["anomaly_score"] = round(anomaly_score, 4)
     return RiskResult(
         score=min(100, rule_points + anomaly_points),
         flags=flags,

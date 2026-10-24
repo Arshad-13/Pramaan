@@ -18,23 +18,33 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import timedelta
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, func, select, update
 from sqlalchemy.orm import Session
 
-from app.ai import drug_match
+from app.ai import anomaly, drug_match, features
 from app.ai import risk as risk_mod
 from app.config import get_settings
 from app.core import audit, clock, crypto
 from app.core import payload as payload_mod
 from app.core import pin as pin_mod
 from app.core.canonical import canonical_bytes, sha256_hex
+from app.core.keys import load_signing_key_from_file
 from app.core.pdf import render_prescription_pdf
 from app.core.qr import build_qr, new_rx_id
 from app.errors import BadRequest, Conflict, NotFound, RiskConfirmationRequired
-from app.models import ApprovalStatus, Prescription, Role, RxStatus, Severity, User
+from app.models import (
+    ApprovalStatus,
+    Prescription,
+    Role,
+    RxStatus,
+    SecurityEvent,
+    Severity,
+    User,
+)
 from app.schemas import (
     DrugOut,
     IssueIn,
@@ -74,12 +84,130 @@ def _doctor_rx_last_24h(db: Session, doctor: User) -> int:
     )
 
 
-def _assess(db: Session, doctor: User, medicines: list[dict[str, Any]]) -> risk_mod.RiskResult:
+BASELINE_ROW_LIMIT = 400  # most recent prescriptions read to learn the doctor's habits
+
+
+@lru_cache
+def _model_public_key(path: str):
+    return load_signing_key_from_file(path).public_key()
+
+
+def _model_state() -> anomaly.ModelState:
+    """The signed anomaly model, if it is present and verifies; otherwise why not."""
+    s = get_settings()
+    try:
+        public_key = _model_public_key(s.audit_signing_key_path)
+    except (OSError, ValueError):
+        return anomaly.ModelState(None, "MISSING")
+    return anomaly.current(s.anomaly_model_path, public_key)
+
+
+def _doctor_history(
+    db: Session, doctor: User, patient: User | None, catalog: drug_match.Catalog
+) -> features.DoctorHistory:
+    """The doctor's recent activity, as the model's features need it (excludes the new prescription)."""
+    now = clock.now_utc()
+    day_ago = now - timedelta(hours=24)
+    last_24h = and_(Prescription.doctor_id == doctor.id, Prescription.issued_at >= day_ago)
+    rx_24h, patients_24h = db.execute(
+        select(func.count(), func.count(func.distinct(Prescription.patient_id))).where(last_24h)
+    ).one()
+    patient_7d = 0
+    if patient is not None:
+        patient_7d = (
+            db.scalar(
+                select(func.count())
+                .select_from(Prescription)
+                .where(
+                    Prescription.patient_id == patient.id,
+                    Prescription.issued_at >= now - timedelta(days=7),
+                )
+            )
+            or 0
+        )
+    rows = db.scalars(
+        select(Prescription)
+        .where(
+            Prescription.doctor_id == doctor.id,
+            Prescription.issued_at >= now - timedelta(days=features.BASELINE_DAYS),
+        )
+        .order_by(Prescription.issued_at.desc())
+        .limit(BASELINE_ROW_LIMIT)
+    ).all()
+    known: set[str] = set()
+    meds_30d = controlled_30d = used = 0
+    recent_cutoff = now - timedelta(days=features.RECENT_DAYS)
+    for row in rows:
+        try:
+            medicines = _decrypt_payload(row)["medicines"]
+        except (crypto.DecryptionError, ValueError, KeyError):
+            continue  # an unreadable old record must not stop a new prescription
+        used += 1
+        for med in medicines:
+            key = features.generic_of(str(med.get("name", "")), catalog)
+            if key:
+                known.add(key)
+            if row.issued_at >= recent_cutoff:
+                meds_30d += 1
+                controlled_30d += int(features.is_controlled(key, catalog))
+    return features.DoctorHistory(
+        rx_last_24h=int(rx_24h),
+        distinct_patients_last_24h=int(patients_24h),
+        patient_rx_last_7d=int(patient_7d),
+        known_generics=frozenset(known),
+        baseline_rx=used,
+        meds_30d=meds_30d,
+        controlled_meds_30d=controlled_30d,
+    )
+
+
+def _assess(
+    db: Session, doctor: User, medicines: list[dict[str, Any]], patient: User | None = None
+) -> risk_mod.RiskResult:
+    """Rules plus, when a verified model is available, the anomaly score and its reasons."""
+    state = _model_state()
+    if state.model is None:
+        return risk_mod.assess(
+            medicines,
+            doctor_rx_last_24h=_doctor_rx_last_24h(db, doctor),
+            issue_hour=clock.now_utc().hour,
+        )
+    catalog = drug_match.load_catalog()
+    hour = clock.now_utc().hour
+    history = _doctor_history(db, doctor, patient, catalog)
+    model_features = features.build_features(medicines, hour, history, catalog)
+    scored = state.model.assess(model_features)
     return risk_mod.assess(
         medicines,
-        doctor_rx_last_24h=_doctor_rx_last_24h(db, doctor),
-        issue_hour=clock.now_utc().hour,
+        doctor_rx_last_24h=history.rx_last_24h,
+        issue_hour=hour,
+        anomaly_score=scored.score,
+        anomaly_explanations=scored.explanations,
+        model_features=model_features,
+        catalog=catalog,
     )
+
+
+def _report_model_problem(db: Session, doctor: User) -> None:
+    """A model file that exists but fails verification is a security event (once a day)."""
+    state = _model_state()
+    if not state.tampered:
+        return
+    since = clock.now_utc() - timedelta(hours=24)
+    already = db.scalar(
+        select(func.count())
+        .select_from(SecurityEvent)
+        .where(SecurityEvent.event_type == "MODEL_FILE_INVALID", SecurityEvent.ts >= since)
+    )
+    if not already:
+        events.record_event(
+            db,
+            event_type="MODEL_FILE_INVALID",
+            severity=Severity.HIGH,
+            user_id=doctor.id,
+            ip=None,
+            details={"status": state.status},
+        )
 
 
 def _risk_out(risk: risk_mod.RiskResult) -> RiskOut:
@@ -156,7 +284,8 @@ def issue_prescription(db: Session, doctor: User, data: IssueIn) -> IssueOut:
     except (payload_mod.PayloadError, ValueError) as exc:
         raise BadRequest(str(exc)) from exc
 
-    risk = _assess(db, doctor, [m.model_dump() for m in data.medicines])
+    risk = _assess(db, doctor, [m.model_dump() for m in data.medicines], patient)
+    _report_model_problem(db, doctor)
     threshold = get_settings().risk_threshold
     if risk.controlled and data.max_fills > 1:
         raise BadRequest("Controlled medicines cannot be refilled. Set fills to 1.")
