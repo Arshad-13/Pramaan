@@ -15,7 +15,7 @@ Requirements: Python 3.11 (not 3.14), Node 20.19+ or 22+, git.
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe scripts\gen_keys.py          # writes .env + secrets/ (git-ignored)
-.\.venv\Scripts\python.exe scripts	rain_anomaly.py        # trains and signs the anomaly model (models/, git-ignored); without it the app runs on rules only
+.\.venv\Scripts\python.exe scripts\train_anomaly.py        # trains and signs the anomaly model (models/, git-ignored); without it the app runs on rules only
 
 # 2. Frontend
 cd frontend
