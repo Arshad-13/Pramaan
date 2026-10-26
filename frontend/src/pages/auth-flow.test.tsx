@@ -1,14 +1,20 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useEffect } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), info: vi.fn(), error: vi.fn() } }))
 
 import { AppShell } from '@/components/AppShell'
 import { RequireAuth } from '@/components/RequireAuth'
+import { api } from '@/lib/api'
 import { AuthProvider } from '@/lib/auth'
 import { DEMO_ACCOUNTS } from '@/lib/demoAccounts'
 import type { User } from '@/lib/types'
+import Account from '@/pages/Account'
 import Activate from '@/pages/Activate'
 import Login from '@/pages/Login'
 
@@ -216,6 +222,84 @@ describe('auth flow', () => {
     await new Promise((resolve) => setTimeout(resolve, 100))
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
     expect(screen.queryByText('Home page')).not.toBeInTheDocument()
+  })
+
+  it('sends the user to the sign-in page when a request finds the session has ended', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/auth/me') return json(200, PATIENT)
+      if (url === '/api/prescriptions/mine') return json(401, { detail: 'Not authenticated.' })
+      throw new Error(`unexpected ${url}`)
+    })
+    function Probe() {
+      useEffect(() => {
+        api('/prescriptions/mine').catch(() => undefined)
+      }, [])
+      return <h1>Home page</h1>
+    }
+    renderAt(
+      '/',
+      <Routes>
+        <Route path="/login" element={<h1>Sign in page</h1>} />
+        <Route element={<RequireAuth><AppShell /></RequireAuth>}>
+          <Route index element={<Probe />} />
+        </Route>
+      </Routes>,
+    )
+    expect(await screen.findByText('Sign in page')).toBeInTheDocument()
+    expect(screen.queryByText('Home page')).not.toBeInTheDocument()
+  })
+
+  it('changes the password from the account page and returns to sign-in with a notice', async () => {
+    let signedIn = true
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === '/api/auth/me') return signedIn ? json(200, PATIENT) : json(401, { detail: 'no' })
+      if (url === '/api/auth/change-password') {
+        signedIn = false
+        expect(JSON.parse(String(init?.body))).toEqual({
+          current_password: 'old-password-123',
+          new_password: 'brand-new-password-9',
+        })
+        return json(204)
+      }
+      throw new Error(`unexpected ${url}`)
+    })
+    renderAt(
+      '/account',
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route element={<RequireAuth><AppShell /></RequireAuth>}>
+          <Route path="account" element={<Account />} />
+        </Route>
+      </Routes>,
+    )
+    expect(await screen.findByText('K7M2-Q9XD')).toBeInTheDocument() // the patient code is shown
+    await userEvent.type(screen.getByLabelText('Current password'), 'old-password-123')
+    await userEvent.type(screen.getByLabelText('New password'), 'brand-new-password-9')
+    await userEvent.type(screen.getByLabelText('New password again'), 'brand-new-password-9')
+    await userEvent.click(screen.getByRole('button', { name: 'Change password' }))
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+    expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('Password changed'))
+  })
+
+  it('checks the new password on the account page before calling the server', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/auth/me') return json(200, PATIENT)
+      throw new Error(`unexpected ${url}`)
+    })
+    renderAt(
+      '/account',
+      <Routes>
+        <Route element={<RequireAuth><AppShell /></RequireAuth>}>
+          <Route path="account" element={<Account />} />
+        </Route>
+      </Routes>,
+    )
+    await userEvent.type(await screen.findByLabelText('Current password'), 'same-password-123')
+    await userEvent.type(screen.getByLabelText('New password'), 'same-password-123')
+    await userEvent.type(screen.getByLabelText('New password again'), 'different-password-1')
+    await userEvent.click(screen.getByRole('button', { name: 'Change password' }))
+    expect(await screen.findByText('The two new passwords do not match.')).toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([u]) => u === '/api/auth/change-password')).toBe(false)
   })
 
   it('stays signed in and says so when the sign-out request cannot reach the server', async () => {

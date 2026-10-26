@@ -233,6 +233,7 @@ class PrescriptionOut(BaseModel):
     key_id: str
     fingerprint: str
     risk_score: int | None = None  # visible to the issuing doctor only
+    flagged: bool = False  # issuing doctor only: the score reached the review threshold
     require_pin: bool = True
     readable: bool = True  # False if the stored record failed its integrity check
 

@@ -27,6 +27,13 @@ export const VERDICTS = [
 export type Verdict = (typeof VERDICTS)[number]
 export type Tone = 'verified' | 'danger' | 'warning'
 
+/** The seal's ring colour for each tone (design tokens, so it follows the theme). */
+export const RING_COLOR: Record<Tone, string> = {
+  verified: 'var(--verified-solid)',
+  danger: 'var(--danger-solid)',
+  warning: 'var(--warning-solid)',
+}
+
 export interface VerdictMeta {
   label: string
   tone: Tone

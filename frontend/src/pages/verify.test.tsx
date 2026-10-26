@@ -208,6 +208,46 @@ describe('Verify page', () => {
     expect(screen.queryByRole('button', { name: 'Dispense' })).not.toBeInTheDocument()
   })
 
+  it('moves between the entry methods with the arrow keys, as a tabs control should', async () => {
+    route(VALID)
+    renderVerify()
+    const scan = await screen.findByRole('tab', { name: /Scan/ })
+    scan.focus()
+    expect(scan).toHaveAttribute('tabindex', '0')
+    expect(screen.getByRole('tab', { name: /Paste code/ })).toHaveAttribute('tabindex', '-1')
+    await userEvent.keyboard('{ArrowRight}')
+    expect(screen.getByRole('tab', { name: /Upload photo or PDF/ })).toHaveFocus()
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'tab-upload')
+    await userEvent.keyboard('{End}')
+    expect(screen.getByRole('tab', { name: /Paste code/ })).toHaveFocus()
+    await userEvent.keyboard('{ArrowRight}') // wraps around
+    expect(screen.getByRole('tab', { name: /Scan/ })).toHaveFocus()
+    await userEvent.keyboard('{ArrowLeft}') // and back
+    expect(screen.getByRole('tab', { name: /Paste code/ })).toHaveFocus()
+  })
+
+  it('keeps risk notes calm under a Verified verdict (no warning box beside a green result)', async () => {
+    route({
+      ...VALID,
+      risk: { score: 15, flags: ['DOCTOR_BURST'], explanations: ['Many prescriptions were issued from this doctor.'] },
+    })
+    renderVerify()
+    await pasteAndVerify()
+    expect(await screen.findByRole('heading', { name: 'Verified' })).toBeInTheDocument()
+    const notes = screen.getByRole('region', { name: /Worth knowing/ })
+    expect(within(notes).getByText('Many prescriptions were issued from this doctor.')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /Why this was flagged/ })).not.toBeInTheDocument()
+  })
+
+  it('does not tell the pharmacist to dispense when the verdict is not Verified', async () => {
+    route({ ...VALID, result: 'REVOKED', reason_codes: ['RX_REVOKED'], can_dispense: false })
+    renderVerify()
+    await pasteAndVerify()
+    expect(await screen.findByRole('heading', { name: 'Revoked' })).toBeInTheDocument()
+    expect(screen.queryByText(/Dispense according to this verified record/)).not.toBeInTheDocument()
+    expect(screen.getByText('This is what the doctor signed. It is not cleared for dispensing.')).toBeInTheDocument()
+  })
+
   it('shows the record but no dispense control for a revoked prescription', async () => {
     route({ ...VALID, result: 'REVOKED', reason_codes: ['RX_REVOKED'], can_dispense: false })
     renderVerify()

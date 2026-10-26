@@ -78,3 +78,6 @@ cd frontend; npm run build; npm run e2e         # real-browser demo script + acc
   - git: `git -c http.sslBackend=schannel clone|push ...`
   - npm/Node: set `NODE_USE_SYSTEM_CA=1`.
 - `py -0p` may list a Python that is no longer installed; check with `Test-Path` on the listed path.
+- **"The database is schema version N but this app needs M"**: the `pramaan.db` file was made by a different version of the app. Re-create it with `seed_demo.py --reset` (this wipes the local database).
+- **Dashboard says "Degraded"**: the server is up but a readiness check failed (database or audit signing key). The reason is in the server's console; `GET /api/ready` only says ok or degraded.
+- To quote a failing request, give the `X-Request-ID` response header; the server log line carries the same id.

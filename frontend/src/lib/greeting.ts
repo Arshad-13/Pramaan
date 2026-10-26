@@ -1,3 +1,9 @@
+/** "Good morning" / "Good afternoon" / "Good evening" for the local time. */
+export function dayPartGreeting(now = new Date()): string {
+  const hour = now.getHours()
+  return hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
+}
+
 /** How the app addresses someone: "Dr. A. Shah" -> "Dr. Shah"; "Ravi Patel" -> "Ravi". */
 export function greetingName(name: string | undefined): string {
   if (!name) return ''

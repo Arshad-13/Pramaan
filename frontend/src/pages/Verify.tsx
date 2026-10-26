@@ -1,5 +1,5 @@
-import { FileUp, Loader2, QrCode, ScanLine, TextCursorInput, TriangleAlert } from 'lucide-react'
-import { useCallback, useState, type FormEvent } from 'react'
+import { FileUp, Info, Loader2, QrCode, ScanLine, TextCursorInput, TriangleAlert } from 'lucide-react'
+import { useCallback, useState, type FormEvent, type KeyboardEvent } from 'react'
 
 import { DispensePanel } from '@/components/DispensePanel'
 import { PageHeader } from '@/components/PageHeader'
@@ -18,6 +18,12 @@ import { VERDICT_META } from '@/lib/verdicts'
 import { cn } from '@/lib/utils'
 
 type Tab = 'scan' | 'upload' | 'paste'
+
+const TABS = [
+  ['scan', 'Scan', QrCode],
+  ['upload', 'Upload photo or PDF', FileUp],
+  ['paste', 'Paste code', TextCursorInput],
+] as const
 
 const TONE_PANEL = {
   verified: 'border-verified-border bg-verified-soft',
@@ -49,14 +55,23 @@ function Verdict({ result }: { result: VerifyResult }) {
   )
 }
 
-/** Why a prescription was flagged: plain-language reasons from the rule checks. */
+/**
+ * Plain-language reasons from the rule checks. When the prescription was flagged (any verdict but
+ * Verified) this is a warning. When it is Verified the notes are only background, so they stay calm:
+ * an amber box under a green verdict would send two opposite messages.
+ */
 function RiskNotes({ result }: { result: VerifyResult }) {
   const notes = result.risk?.explanations ?? []
   if (notes.length === 0) return null
+  const flagged = result.result !== 'VALID'
+  const Icon = flagged ? TriangleAlert : Info
   return (
-    <section aria-labelledby="risk-notes-h" className="rounded-lg border border-warning-border bg-warning-soft p-5">
-      <h3 id="risk-notes-h" className="flex items-center gap-2 text-sm font-semibold text-warning">
-        <TriangleAlert className="size-4" aria-hidden="true" /> Why this was flagged
+    <section
+      aria-labelledby="risk-notes-h"
+      className={cn('rounded-lg border p-5', flagged ? 'border-warning-border bg-warning-soft' : 'border-border bg-surface-2')}
+    >
+      <h3 id="risk-notes-h" className={cn('flex items-center gap-2 text-sm font-semibold', flagged && 'text-warning')}>
+        <Icon className="size-4" aria-hidden="true" /> {flagged ? 'Why this was flagged' : 'Worth knowing'}
       </h3>
       <ul className="mt-2 space-y-1 text-sm text-foreground">
         {notes.map((text) => (
@@ -113,6 +128,23 @@ export default function Verify() {
     setText('')
   }
 
+  /** Arrow keys, Home and End move between the tabs (the standard tabs keyboard pattern). */
+  function onTabKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
+    const current = TABS.findIndex(([value]) => value === tab)
+    const last = TABS.length - 1
+    const target =
+      e.key === 'ArrowRight' ? (current + 1) % TABS.length
+      : e.key === 'ArrowLeft' ? (current + last) % TABS.length
+      : e.key === 'Home' ? 0
+      : e.key === 'End' ? last
+      : -1
+    if (target < 0) return
+    e.preventDefault()
+    const [value] = TABS[target]
+    setTab(value)
+    document.getElementById(`tab-${value}`)?.focus()
+  }
+
   function onPaste(e: FormEvent) {
     e.preventDefault()
     void run(text)
@@ -135,18 +167,16 @@ export default function Verify() {
       {!result && (
         <div className="max-w-xl">
           <div role="tablist" aria-label="How to enter the code" className="mb-5 inline-flex rounded-md border border-border bg-surface-2 p-0.5">
-            {(
-              [
-                ['scan', 'Scan', QrCode],
-                ['upload', 'Upload photo or PDF', FileUp],
-                ['paste', 'Paste code', TextCursorInput],
-              ] as const
-            ).map(([value, label, Icon]) => (
+            {TABS.map(([value, label, Icon]) => (
               <button
                 key={value}
+                id={`tab-${value}`}
                 role="tab"
                 type="button"
                 aria-selected={tab === value}
+                aria-controls="tabpanel-verify"
+                tabIndex={tab === value ? 0 : -1}
+                onKeyDown={onTabKeyDown}
                 onClick={() => setTab(value)}
                 className={cn(
                   'inline-flex h-10 items-center gap-2 rounded-sm px-4 text-sm font-medium transition-colors duration-150',
@@ -158,6 +188,7 @@ export default function Verify() {
             ))}
           </div>
 
+          <div role="tabpanel" id="tabpanel-verify" aria-labelledby={`tab-${tab}`}>
           {tab === 'scan' && <QrScanner onResult={run} onFallback={setTab} />}
           {tab === 'upload' && <UploadDrop onFile={runUpload} pending={pending} />}
           {tab === 'paste' && (
@@ -181,6 +212,7 @@ export default function Verify() {
               </Button>
             </form>
           )}
+          </div>
 
           {pending && tab === 'scan' && (
             <p role="status" className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">

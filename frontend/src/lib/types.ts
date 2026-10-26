@@ -59,6 +59,8 @@ export interface Prescription {
   key_id: string
   fingerprint: string
   risk_score: number | null
+  /** Doctor only: the risk score reached the server's review threshold. */
+  flagged?: boolean
   require_pin: boolean
   readable: boolean
 }

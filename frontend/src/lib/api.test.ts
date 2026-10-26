@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { api, ApiError, formatDetail, readCsrfToken } from './api'
+import { api, ApiError, formatDetail, readCsrfToken, setSessionEndedHandler } from './api'
 import { navFor } from './nav'
 
 function respond(status: number, body?: unknown) {
@@ -41,6 +41,19 @@ describe('api()', () => {
     document.cookie = 'pramaan_csrf=; max-age=0'
   })
   afterEach(() => vi.unstubAllGlobals())
+
+  it('reports a 401 on a signed-in request as an ended session, but not a 401 from /auth/*', async () => {
+    const ended = vi.fn()
+    const unregister = setSessionEndedHandler(ended)
+    fetchMock.mockResolvedValue(respond(401, { detail: 'Not authenticated.' }))
+    await expect(api('/prescriptions/mine')).rejects.toBeInstanceOf(ApiError)
+    expect(ended).toHaveBeenCalledTimes(1)
+    await expect(api('/auth/login', { method: 'POST', body: {} })).rejects.toBeInstanceOf(ApiError)
+    expect(ended).toHaveBeenCalledTimes(1) // wrong password is not an ended session
+    unregister()
+    await expect(api('/prescriptions/mine')).rejects.toBeInstanceOf(ApiError)
+    expect(ended).toHaveBeenCalledTimes(1) // unregistered: no more calls
+  })
 
   it('sends the CSRF header on state-changing requests only', async () => {
     document.cookie = 'pramaan_csrf=token-xyz'

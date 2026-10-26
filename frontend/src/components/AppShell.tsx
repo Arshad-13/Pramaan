@@ -42,10 +42,19 @@ function AccountBlock() {
   if (!user) return null
   return (
     <div className="flex items-center gap-2 border-t border-border px-2 pt-3">
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{user.name}</p>
-        <p className="truncate text-xs text-muted-foreground">{ROLE_LABEL[user.role]}</p>
-      </div>
+      <NavLink
+        to="/account"
+        title="Your account"
+        className={({ isActive }) =>
+          cn(
+            'min-w-0 flex-1 rounded-md px-2 py-1 transition-colors duration-150 hover:bg-surface',
+            isActive && 'bg-surface shadow-[inset_0_0_0_1px_var(--border)]',
+          )
+        }
+      >
+        <span className="block truncate text-sm font-medium">{user.name}</span>
+        <span className="block truncate text-xs text-muted-foreground">{ROLE_LABEL[user.role]}</span>
+      </NavLink>
       <button
         type="button"
         aria-label="Sign out"
@@ -119,7 +128,7 @@ export function AppShell() {
       </header>
 
       <div className="flex min-w-0 flex-col">
-        <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 md:px-10 md:py-10">
+        <main id="main" tabIndex={-1} className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 outline-none md:px-10 md:py-10">
           <Outlet />
         </main>
         <footer className="border-t border-border px-4 py-4 text-xs text-muted-foreground md:px-10">

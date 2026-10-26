@@ -436,6 +436,7 @@ def summarise(row: Prescription, viewer: User) -> PrescriptionOut:
         key_id=row.key_id,
         fingerprint=payload_mod.fingerprint(row.payload_hash),
         risk_score=row.risk_score if viewer.role == Role.doctor else None,
+        flagged=viewer.role == Role.doctor and row.risk_score >= get_settings().risk_threshold,
         require_pin=row.require_pin,
     )
     try:

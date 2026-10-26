@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 
 import { Logo } from '@/components/Logo'
-import { Seal } from '@/components/Seal'
+import { SealFrame } from '@/components/SealFrame'
+import { RING_COLOR } from '@/lib/verdicts'
 
 /** Split layout shared by sign-in, register and activate: brand panel + a form column. */
 export function AuthLayout({
@@ -17,7 +18,10 @@ export function AuthLayout({
     <div className="grid min-h-dvh lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
       <aside className="relative hidden overflow-hidden bg-[oklch(0.2_0.05_258)] p-12 text-[oklch(0.96_0.006_255)] lg:flex lg:flex-col">
         <div aria-hidden="true" className="absolute -bottom-24 -right-24 opacity-[0.14]">
-          <Seal verdict="VALID" size={520} />
+          {/* Still, not animated: this panel must not load the motion library. */}
+          <SealFrame verdict="VALID" size={520}>
+            <circle cx="50" cy="50" r="39" fill="none" stroke={RING_COLOR.verified} strokeWidth="3" />
+          </SealFrame>
         </div>
         <Logo inverted />
         <div className="mt-auto max-w-md">

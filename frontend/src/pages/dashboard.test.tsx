@@ -56,7 +56,7 @@ describe('Dashboard', () => {
   function route(me: User, routes: Record<string, unknown>) {
     fetchMock.mockImplementation(async (url: string) => {
       if (url === '/api/auth/me') return json(me)
-      if (url === '/api/health') return json({ status: 'ok' })
+      if (url === '/api/ready') return json({ status: 'ok' })
       const hit = Object.keys(routes).find((k) => url.startsWith(k))
       if (hit) return json(routes[hit])
       throw new Error(`unexpected ${url}`)
@@ -65,7 +65,7 @@ describe('Dashboard', () => {
 
   it('greets a doctor properly and summarises their prescriptions', async () => {
     route(user('doctor', 'Dr. A. Shah'), {
-      '/api/prescriptions/mine': [rx('1', 'ISSUED'), rx('2', 'DISPENSED'), rx('3', 'REVOKED'), rx('4', 'ISSUED', { risk_score: 75 })],
+      '/api/prescriptions/mine': [rx('1', 'ISSUED'), rx('2', 'DISPENSED'), rx('3', 'REVOKED'), rx('4', 'ISSUED', { risk_score: 75, flagged: true })],
     })
     renderDashboard()
     expect(await screen.findByRole('heading', { name: /, Dr\. Shah$/ })).toBeInTheDocument()
@@ -75,6 +75,22 @@ describe('Dashboard', () => {
     expect(within(glance).getByText('Not yet picked up').nextSibling).toHaveTextContent('2')
     expect(within(glance).getByText('Flagged when issued').nextSibling).toHaveTextContent('1')
     expect(screen.getAllByText('Ravi Patel').length).toBeGreaterThan(0)
+  })
+
+  it('says Running when the server is ready and Degraded when a readiness check fails', async () => {
+    route(user('doctor', 'Dr. A. Shah'), { '/api/prescriptions/mine': [] })
+    const ok = renderDashboard()
+    expect(await screen.findByText('Running')).toBeInTheDocument()
+    ok.unmount()
+
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/auth/me') return json(user('doctor', 'Dr. A. Shah'))
+      if (url === '/api/ready') return new Response(JSON.stringify({ status: 'degraded' }), { status: 503 })
+      return json([])
+    })
+    renderDashboard()
+    expect(await screen.findByText('Degraded')).toBeInTheDocument()
+    expect(screen.queryByText('Running')).not.toBeInTheDocument()
   })
 
   it('shows a patient only what is ready to use', async () => {

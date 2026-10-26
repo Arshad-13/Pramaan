@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.config import get_settings
 
 BUSY_TIMEOUT_MS = 10_000
+SCHEMA_VERSION = 1  # bump whenever a model changes shape; see init_db()
 
 
 def make_engine(url: str) -> Engine:
@@ -57,9 +58,15 @@ def get_engine() -> Engine:
     return make_engine(get_settings().database_url)
 
 
+@lru_cache(maxsize=4)
+def _session_factory(engine: Engine) -> sessionmaker[Session]:
+    # One factory per engine instead of one per request.
+    return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+
+
 def SessionLocal() -> Session:  # noqa: N802 - conventional name
     """Create a session bound to the current engine."""
-    return sessionmaker(bind=get_engine(), autoflush=False, expire_on_commit=False)()
+    return _session_factory(get_engine())()
 
 
 def get_db() -> Iterator[Session]:
@@ -71,9 +78,31 @@ def get_db() -> Iterator[Session]:
         db.close()
 
 
+class SchemaVersionError(RuntimeError):
+    """The database file was made by a different version of the schema."""
+
+
 def init_db() -> None:
-    """Create all tables (idempotent)."""
+    """Create all tables (idempotent) and check the schema version.
+
+    `create_all` never alters an existing table, so a database made by an older or newer schema
+    would start fine and then fail in odd places (or, worse, store things in the wrong shape). The
+    schema version lives in SQLite's `user_version`: a fresh or unversioned file is stamped with the
+    current version, and any other value stops the app with a clear message (fail closed).
+    """
     from app import models  # noqa: F401 - registers tables on Base.metadata
     from app.models import Base
 
-    Base.metadata.create_all(get_engine())
+    engine = get_engine()
+    Base.metadata.create_all(engine)
+    if engine.dialect.name != "sqlite":
+        return
+    with engine.begin() as conn:
+        found = conn.exec_driver_sql("PRAGMA user_version").scalar_one()
+        if found == 0:
+            conn.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")  # int constant
+        elif found != SCHEMA_VERSION:
+            raise SchemaVersionError(
+                f"The database is schema version {found} but this app needs {SCHEMA_VERSION}. "
+                "Re-seed the demo database (scripts/seed_demo.py --reset) or restore a matching file."
+            )

@@ -45,6 +45,20 @@ export function formatDetail(detail: unknown, fallback: string): string {
   return fallback
 }
 
+let onSessionEnded: (() => void) | null = null
+
+/**
+ * Register what happens when a signed-in request comes back 401 (the session expired or was ended
+ * elsewhere). Returns an unregister function. Auth endpoints are excluded: a 401 from the sign-in
+ * form means "wrong password", not "your session ended".
+ */
+export function setSessionEndedHandler(handler: (() => void) | null): () => void {
+  onSessionEnded = handler
+  return () => {
+    if (onSessionEnded === handler) onSessionEnded = null
+  }
+}
+
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
   body?: unknown
@@ -80,6 +94,7 @@ export async function api<T = void>(path: string, options: RequestOptions = {}):
   } catch {
     /* empty or non-JSON body */
   }
+  if (response.status === 401 && !path.startsWith('/auth/')) onSessionEnded?.()
   if (!response.ok) {
     const detail = (data as { detail?: unknown } | null)?.detail
     throw new ApiError(response.status, formatDetail(detail, `Request failed (${response.status})`), data)

@@ -327,6 +327,7 @@ FAKE_ID = "00000000-0000-0000-0000-000000000000"
 
 EXPECTED_ACCESS: dict[tuple[str, str], object] = {
     ("GET", "/api/health"): PUBLIC,
+    ("GET", "/api/ready"): PUBLIC,
     ("POST", "/api/auth/register"): PUBLIC,
     ("POST", "/api/auth/login"): PUBLIC,
     ("POST", "/api/auth/activate"): PUBLIC,

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, CircleCheck, CircleX, FilePlus2, ScanLine, ScrollText, UsersRound } from 'lucide-react'
+import { ArrowRight, CircleCheck, CircleX, FilePlus2, ScanLine, ScrollText, TriangleAlert, UsersRound } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -11,32 +11,33 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { api } from '@/lib/api'
 import { eventLabel } from '@/lib/audit'
 import { useAuth } from '@/lib/auth'
-import { greetingName } from '@/lib/greeting'
+import { dayPartGreeting, greetingName } from '@/lib/greeting'
 import { formatDate, medicineSummary } from '@/lib/rx'
 import type { AuditPage, Prescription, RecentActivity, SecurityEvent, UserList } from '@/lib/types'
 import { VERDICT_META, type Verdict } from '@/lib/verdicts'
 import { cn } from '@/lib/utils'
 
-const RISK_REVIEW_AT = 60 // the server's default review threshold, used only to label a count
-
-function greeting(now = new Date()): string {
-  const hour = now.getHours()
-  return hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
-}
-
-async function fetchHealth(): Promise<{ status: string }> {
-  const response = await fetch('/api/health', { headers: { Accept: 'application/json' } })
-  if (!response.ok) throw new Error(`health ${response.status}`)
-  return response.json()
+/** 'ok' when the server can really serve, 'degraded' when it is up but something it needs is not. */
+async function fetchReadiness(): Promise<'ok' | 'degraded'> {
+  const response = await fetch('/api/ready', { headers: { Accept: 'application/json' } })
+  if (response.status === 503) return 'degraded'
+  if (!response.ok) throw new Error(`ready ${response.status}`)
+  return 'ok'
 }
 
 function ServiceStatus() {
-  const { data, isPending, isError } = useQuery({ queryKey: ['health'], queryFn: fetchHealth, refetchInterval: 15_000, retry: 1 })
+  const { data, isPending, isError } = useQuery({ queryKey: ['ready'], queryFn: fetchReadiness, refetchInterval: 15_000, retry: 1 })
   if (isPending) return <Skeleton className="h-6 w-24" />
-  if (isError || data?.status !== 'ok')
+  if (isError)
     return (
       <Badge tone="danger">
         <CircleX aria-hidden="true" /> Unreachable
+      </Badge>
+    )
+  if (data === 'degraded')
+    return (
+      <Badge tone="warning">
+        <TriangleAlert aria-hidden="true" /> Degraded
       </Badge>
     )
   return (
@@ -140,7 +141,7 @@ function DoctorHome() {
   const all = data ?? []
   const count = (status: string) => all.filter((r) => r.status === status).length
   const waiting = all.filter((r) => r.status === 'ISSUED' && r.fills_used === 0).length
-  const flagged = all.filter((r) => (r.risk_score ?? 0) >= RISK_REVIEW_AT).length
+  const flagged = all.filter((r) => r.flagged).length
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start">
       <Panel title="Latest prescriptions" to="/prescriptions">
@@ -343,7 +344,7 @@ export default function Dashboard() {
   return (
     <>
       <PageHeader
-        title={`${greeting()}, ${greetingName(user.name)}`}
+        title={`${dayPartGreeting()}, ${greetingName(user.name)}`}
         description={config.description}
         actions={
           Action && (

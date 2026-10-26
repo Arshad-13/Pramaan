@@ -1,15 +1,19 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Toaster } from 'sonner'
 
 import { AppShell } from '@/components/AppShell'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { RequireAuth } from '@/components/RequireAuth'
+import { RouteEffects } from '@/components/RouteEffects'
 import { AuthProvider } from '@/lib/auth'
 import Dashboard from '@/pages/Dashboard'
 import Login from '@/pages/Login'
+import NotFound from '@/pages/NotFound'
 
 // Less-visited pages load on demand to keep the first load small.
+const Account = lazy(() => import('@/pages/Account'))
 const Activate = lazy(() => import('@/pages/Activate'))
 const Register = lazy(() => import('@/pages/Register'))
 const Admin = lazy(() => import('@/pages/Admin'))
@@ -27,6 +31,8 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <BrowserRouter>
+          <RouteEffects />
+          <ErrorBoundary>
           <Suspense fallback={<div role="status" aria-label="Loading" className="p-10" />}>
           <Routes>
             <Route path="/login" element={<Login />} />
@@ -40,6 +46,7 @@ export default function App() {
               }
             >
               <Route index element={<Dashboard />} />
+              <Route path="account" element={<Account />} />
               <Route
                 path="prescriptions/new"
                 element={
@@ -80,10 +87,11 @@ export default function App() {
                   </RequireAuth>
                 }
               />
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
           </Suspense>
+          </ErrorBoundary>
         </BrowserRouter>
         <Toaster position="bottom-right" />
       </AuthProvider>

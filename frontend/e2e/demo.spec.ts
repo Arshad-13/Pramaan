@@ -214,6 +214,10 @@ test('6. no serious accessibility violations on the main screens, in light and d
   await audit(doctor, 'new prescription')
   await doctor.goto('/prescriptions')
   await audit(doctor, 'my prescriptions')
+  await doctor.goto('/account')
+  await expect(doctor.getByRole('heading', { name: 'Account', exact: true })).toBeVisible()
+  await expect(doctor).toHaveTitle('Account · Pramaan')
+  await audit(doctor, 'account')
 
   const admin = await signIn(browser, 'admin@pramaan.test', PASSWORDS.admin)
   await expect(h1(admin)).toBeVisible()
@@ -234,4 +238,6 @@ test('6. no serious accessibility violations on the main screens, in light and d
   await audit(auditor, 'audit log (dark)')
   await pharmacist.getByRole('radio', { name: 'Dark theme' }).first().click()
   await audit(pharmacist, 'verify result (dark)')
+  await doctor.getByRole('radio', { name: 'Dark theme' }).first().click()
+  await audit(doctor, 'account (dark)')
 })

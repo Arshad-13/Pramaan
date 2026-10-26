@@ -10,6 +10,18 @@ export interface Step {
   note?: string
 }
 
+/**
+ * The line under "Verified record". "Dispense according to this record" is only right when the
+ * prescription is cleared; under any other verdict it must not read like an instruction to hand
+ * the medicine over.
+ */
+export function recordGuidance(result: VerifyResult): string {
+  if (result.can_dispense) return 'Dispense according to this verified record, not the paper.'
+  if (result.result === 'TAMPERED') return 'This is what the doctor signed. The page in front of you does not match it.'
+  if (result.result === 'REVIEW_REQUIRED') return 'This is what the doctor signed. Compare it with the page by eye before deciding.'
+  return 'This is what the doctor signed. It is not cleared for dispensing.'
+}
+
 /** Plain-language text for every reason code the server can return. */
 export const REASON_TEXT: Record<string, string> = {
   MALFORMED_QR: 'This is not a Pramaan prescription code.',

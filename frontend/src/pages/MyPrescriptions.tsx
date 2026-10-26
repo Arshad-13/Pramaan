@@ -129,7 +129,7 @@ export default function MyPrescriptions() {
                     <div className="flex flex-col items-start gap-1.5">
                       <RxStatusBadge status={rx.status} readable={rx.readable} />
                       {isDoctor && rx.risk_score != null && rx.risk_score > 0 && (
-                        <Badge tone={rx.risk_score >= 60 ? 'warning' : 'neutral'}>Risk {rx.risk_score}</Badge>
+                        <Badge tone={rx.flagged ? 'warning' : 'neutral'}>Risk {rx.risk_score}</Badge>
                       )}
                     </div>
                   </td>

@@ -64,6 +64,9 @@ def change_password(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> None:
+    # The current-password check is a password oracle for anyone holding a stolen session, so it
+    # gets the same per-minute budget as sign-in.
+    limiter.check(f"change-password:user:{user.id}", get_settings().login_rate_per_minute)
     accounts.change_password(db, user, data.current_password, data.new_password)
     clear_session_cookies(response)  # all sessions were invalidated; sign in again
 

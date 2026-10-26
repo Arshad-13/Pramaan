@@ -444,6 +444,22 @@ def test_status_reads_expired_after_the_signed_expiry(w, frozen_clock):
     assert w.client.get("/api/prescriptions/mine", headers=fresh).json()[0]["status"] == "EXPIRED"
 
 
+def test_flagged_follows_the_server_threshold_and_is_for_the_doctor_only(w):
+    rx_id = issue(w).json()["rx_id"]
+    below, above = get_settings().risk_threshold - 1, get_settings().risk_threshold
+    for score, expected in ((below, False), (above, True)):
+        with session() as db:
+            db.execute(
+                text("UPDATE prescriptions SET risk_score = :s WHERE id = :i"),
+                {"s": score, "i": rx_id},
+            )
+            db.commit()
+        doctor_row = w.client.get("/api/prescriptions/mine", headers=w.doctor).json()[0]
+        assert doctor_row["flagged"] is expected
+        patient_row = w.client.get("/api/prescriptions/mine", headers=w.patient1_h).json()[0]
+        assert patient_row["flagged"] is False and patient_row["risk_score"] is None
+
+
 def test_a_tampered_stored_payload_is_flagged_unreadable_not_shown(w):
     rx_id = issue(w).json()["rx_id"]
     row = stored(rx_id)

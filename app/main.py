@@ -8,7 +8,10 @@ Run   : `uvicorn app.main:app`
 from __future__ import annotations
 
 import logging
+import re
 import sys
+import time
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -18,7 +21,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import ConfigError, get_settings
-from app.db import init_db
+from app.db import get_engine, init_db
 from app.errors import ServiceError
 from app.routers import admin, auth, keys, prescriptions, verify
 
@@ -43,6 +46,40 @@ SECURITY_HEADERS = {
 
 FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
+REQUEST_ID_HEADER = "X-Request-ID"
+_SAFE_REQUEST_ID = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
+access_logger = logging.getLogger("pramaan.access")
+
+
+def _failed_readiness_checks() -> list[str]:
+    """Names of the things this process needs that are not working right now."""
+    failed: list[str] = []
+    try:
+        with get_engine().connect() as conn:
+            conn.exec_driver_sql("SELECT 1")
+    except Exception:  # any failure at all means "not ready"; the detail is not returned
+        failed.append("database")
+    if not Path(get_settings().audit_signing_key_path).is_file():
+        failed.append("audit signing key")
+    return failed
+
+
+def _request_id(request: Request) -> str:
+    """Reuse a caller's id only if it is short and plain (it ends up in logs); else make one."""
+    supplied = request.headers.get(REQUEST_ID_HEADER, "")
+    return supplied if _SAFE_REQUEST_ID.fullmatch(supplied) else uuid.uuid4().hex
+
+
+def _configure_access_log() -> None:
+    """One line per request on stderr, once (create_app may be called more than once in tests)."""
+    if access_logger.handlers:
+        return
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+    access_logger.addHandler(handler)
+    access_logger.setLevel(logging.INFO)
+    access_logger.propagate = False
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -59,6 +96,16 @@ def build_api_router() -> APIRouter:
     def health() -> dict[str, str]:
         """Liveness only. Deliberately returns no version, path or config details."""
         return {"status": "ok"}
+
+    @api.get("/ready")
+    def ready() -> JSONResponse:
+        """Readiness: can this process actually serve? Says ok or degraded and nothing more; the
+        failing check is logged server-side, never returned."""
+        failed = _failed_readiness_checks()
+        for name in failed:
+            logger.error("readiness check failed: %s", name)
+        status = {"status": "degraded" if failed else "ok"}
+        return JSONResponse(status, status_code=503 if failed else 200)
 
     api.include_router(auth.router)
     api.include_router(admin.router)
@@ -106,18 +153,31 @@ def create_app(frontend_dist: Path = FRONTEND_DIST) -> FastAPI:
     )
     app.include_router(build_api_router())
 
-    origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+    _configure_access_log()
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=origins,
+        allow_origins=settings.cors_origin_list,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PATCH", "DELETE"],
-        allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
+        allow_headers=["Content-Type", "Authorization", "X-CSRF-Token", REQUEST_ID_HEADER],
     )
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
+        request_id = _request_id(request)
+        started = time.perf_counter()
         response = await call_next(request)
+        response.headers[REQUEST_ID_HEADER] = request_id
+        if request.url.path.startswith("/api/"):
+            # Method, path (never the query string: it can hold an email), status, time, id.
+            access_logger.info(
+                "%s %s %d %.0fms rid=%s",
+                request.method,
+                request.url.path,
+                response.status_code,
+                (time.perf_counter() - started) * 1000,
+                request_id,
+            )
         for name, value in SECURITY_HEADERS.items():
             response.headers.setdefault(name, value)
         if request.url.path.startswith("/api/"):

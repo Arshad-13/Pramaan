@@ -1,5 +1,6 @@
 import { dateTimeUtc } from '@/lib/rx'
 import type { VerifyResult } from '@/lib/types'
+import { recordGuidance } from '@/lib/verify'
 
 /** The signed record: the authority for dispensing. Shown only when the signature verified. */
 export function VerifiedRecord({ result }: { result: VerifyResult }) {
@@ -10,7 +11,7 @@ export function VerifiedRecord({ result }: { result: VerifyResult }) {
         <h3 id="record-h" className="text-sm font-semibold">
           Verified record
         </h3>
-        <p className="mt-0.5 text-sm text-muted-foreground">Dispense according to this verified record, not the paper.</p>
+        <p className="mt-0.5 text-sm text-muted-foreground">{recordGuidance(result)}</p>
       </div>
       <dl className="grid gap-x-6 gap-y-3 px-5 py-4 text-sm sm:grid-cols-2">
         <div>

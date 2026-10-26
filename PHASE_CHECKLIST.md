@@ -155,9 +155,16 @@ Also built: live `POST /prescriptions/risk-check` (typo hints, score, whether a 
 
 ---
 
+## Improvement pass (Mon 26 - Tue 27 Oct)
+Audit and plan in [`docs/IMPROVEMENT_PLAN.md`](docs/IMPROVEMENT_PLAN.md).
+- [x] I1 verdict clarity, I2 sessions and account page, I3 frontend resilience, I4 backend operability, I5 first-load size
+- [x] I6 proof: full gate green, 128 frontend tests, e2e 6/6 with axe, attack suite 16/16, real dev database upgrades cleanly
+
+---
+
 ## Final Definition of Done (Section 21)
 - [ ] All T0 acceptance criteria met; T1 items met or explicitly cut and documented
-- [ ] `pytest` green, coverage >= 85% on `app/core` and `app/services`; CI green
+- [ ] `pytest` green, coverage >= 85% on `app/core` and `app/services` (measured Tue 27 Oct: 97.2% and 96.0%); CI green (check the Actions tab)
 - [ ] Demo works from a fresh clone on Windows
 - [ ] Attack suite: every attack detected or blocked
 - [ ] No plaintext keys, passwords, PINs or secrets in code, logs, DB or git history
