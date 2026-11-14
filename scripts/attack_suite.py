@@ -605,6 +605,107 @@ def a16(ctx: Ctx):
     )
 
 
+# --- 17-19: added with the second improvement plan (corrections, two-factor, alert workflow) ------
+
+
+@attack(17, "Dispense a prescription the doctor already replaced with a correction")
+def a17(ctx: Ctx):
+    old_id, old_qr, _ = ctx.issue()
+    patient_id = ctx.client.get(
+        "/api/patients/lookup",
+        params={"email": ctx.world.patients[0][0]},
+        headers=ctx.doctor,
+    ).json()["public_id"]
+    corrected = ctx.client.post(
+        "/api/prescriptions",
+        headers=ctx.doctor,
+        json={
+            "patient_id": patient_id,
+            "medicines": [
+                {"name": "Amoxicillin", "dose_mg": 250, "frequency": "TDS", "duration_days": 5}
+            ],
+            "notes": "Corrected dose",
+            "validity_days": 30,
+            "max_fills": 1,
+            "signing_password": ctx.signing_password,
+            "supersedes": old_id,
+        },
+    )
+    assert corrected.status_code == 201, corrected.text
+    verdict = ctx.verify(old_qr)
+    refused = ctx.dispense(old_id, old_qr, "000000")
+    ok = (
+        verdict["result"] == "REVOKED"
+        and "RX_SUPERSEDED" in verdict["reason_codes"]
+        and not verdict["can_dispense"]
+        and refused.status_code != 200
+    )
+    return (
+        "Correction withdraws the original in the same transaction",
+        ok,
+        f"verify={verdict['result']} {verdict['reason_codes']}, dispense HTTP {refused.status_code}",
+    )
+
+
+@attack(18, "Replay a one-time sign-in code, then guess codes until one works")
+def a18(ctx: Ctx):
+    import base64
+
+    from app.core import clock, totp
+
+    email, password = ctx.throwaway("pharmacist", "mfa")
+    session = ctx.login(email, password)
+    enrol = ctx.client.post("/api/auth/mfa/enrol", headers=session, json={"password": password})
+    assert enrol.status_code == 200, enrol.text
+    secret_b32 = enrol.json()["secret"]
+    secret = base64.b32decode(secret_b32 + "=" * (-len(secret_b32) % 8))
+    now_step = totp.step_at(clock.now_utc())
+    spent = totp.code_for_step(secret, now_step)
+    enabled = ctx.client.post("/api/auth/mfa/enable", headers=session, json={"code": spent})
+    assert enabled.status_code == 200, enabled.text
+
+    def second_step(code: str, token: str | None = None):
+        if token is None:
+            first = ctx.client.post("/api/auth/login", json={"email": email, "password": password})
+            token = first.json()["mfa_token"]
+        return token, ctx.client.post(
+            "/api/auth/login/mfa", json={"mfa_token": token, "code": code}
+        )
+
+    token, replay = second_step(spent)  # the code that switched it on, used again
+    wrong = [
+        second_step("000000", token)[1].status_code for _ in range(get_settings().max_failed_logins)
+    ]
+    fresh = totp.code_for_step(
+        secret, now_step + 1
+    )  # a genuinely valid code, but the account is locked now
+    _, late = second_step(fresh, token)
+    ok = replay.status_code == 401 and all(c == 401 for c in wrong) and late.status_code == 401
+    return (
+        "Used-step memory + shared lockout counter on the second step",
+        ok,
+        f"replay HTTP {replay.status_code}, {len(wrong)} wrong guesses HTTP {sorted(set(wrong))}, "
+        f"valid code after lockout HTTP {late.status_code}",
+    )
+
+
+@attack(19, "Close a security alert as the auditor, export the log as a pharmacist")
+def a19(ctx: Ctx):
+    auditor = ctx.token(*ctx.world.auditor)
+    close = ctx.client.patch(
+        "/api/admin/security-events/1", headers=auditor, json={"status": "RESOLVED"}
+    )
+    export = ctx.client.get("/api/admin/audit/export", headers=ctx.pharmacist_a)
+    alerts = ctx.client.get("/api/admin/security-events", headers=ctx.patient(0))
+    ok = close.status_code == 403 and export.status_code == 403 and alerts.status_code == 403
+    return (
+        "Role checks: only admins close alerts, only auditors export",
+        ok,
+        f"auditor closes alert HTTP {close.status_code}, pharmacist exports HTTP "
+        f"{export.status_code}, patient reads alerts HTTP {alerts.status_code}",
+    )
+
+
 def run_all(ctx: Ctx, only: set[int] | None = None) -> list[Result]:
     results = []
     for number, title, run in sorted(ATTACKS, key=lambda a: a[0]):

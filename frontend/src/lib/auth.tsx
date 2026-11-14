@@ -5,10 +5,15 @@ import { toast } from 'sonner'
 import { api, ApiError, setSessionEndedHandler } from '@/lib/api'
 import type { User } from '@/lib/types'
 
+/** What the password step produced: a session, or a request for the second step. */
+export type SignInResult = { status: 'signed-in' } | { status: 'mfa'; mfaToken: string }
+
 interface AuthValue {
   /** undefined while the first check is in flight, null when signed out. */
   user: User | null | undefined
-  signIn: (email: string, password: string) => Promise<void>
+  signIn: (email: string, password: string) => Promise<SignInResult>
+  /** Second sign-in step: a code from the authenticator app, or a recovery code. */
+  completeMfa: (mfaToken: string, code: string) => Promise<void>
   signOut: () => Promise<void>
   /** Forget the local session without calling the server (it already ended every session). */
   endSession: () => void
@@ -54,8 +59,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const signIn = useCallback(
-    async (email: string, password: string) => {
-      await api('/auth/login', { method: 'POST', body: { email, password } })
+    async (email: string, password: string): Promise<SignInResult> => {
+      const result = await api<{ mfa_required?: boolean; mfa_token?: string }>('/auth/login', {
+        method: 'POST',
+        body: { email, password },
+      })
+      if (result?.mfa_required && result.mfa_token) return { status: 'mfa', mfaToken: result.mfa_token }
+      await queryClient.invalidateQueries({ queryKey: ['me'] })
+      return { status: 'signed-in' }
+    },
+    [queryClient],
+  )
+
+  const completeMfa = useCallback(
+    async (mfaToken: string, code: string) => {
+      await api('/auth/login/mfa', { method: 'POST', body: { mfa_token: mfaToken, code } })
       await queryClient.invalidateQueries({ queryKey: ['me'] })
     },
     [queryClient],
@@ -72,7 +90,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     endSession()
   }, [endSession])
 
-  const value = useMemo(() => ({ user, signIn, signOut, endSession }), [user, signIn, signOut, endSession])
+  const value = useMemo(
+    () => ({ user, signIn, completeMfa, signOut, endSession }),
+    [user, signIn, completeMfa, signOut, endSession],
+  )
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

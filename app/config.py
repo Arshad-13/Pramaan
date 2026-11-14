@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     anomaly_model_path: str = "./models/iforest.joblib"
 
     access_token_minutes: int = 30
+    session_max_hours: int = 8  # a session can be renewed, but never past this age
     pbkdf2_iterations: int = 600_000
     storage_dir: str = "./storage"
     anchor_file: str = "./storage/anchors.jsonl"
@@ -52,6 +53,7 @@ class Settings(BaseSettings):
 
     frozen_time: str = ""  # demo/testing only
     debug: bool = False
+    demo_mode: bool = False  # shows the one-click demo sign-ins; never on for a real deployment
     cors_origins: str = "http://localhost:5173"
     trusted_proxy_ips: str = ""
     cookie_secure: bool = False
@@ -110,6 +112,8 @@ def validate_settings(s: Settings) -> None:
         raise ConfigError("PBKDF2_ITERATIONS is dangerously low (minimum 100000).")
     if s.access_token_minutes <= 0 or s.max_failed_logins <= 0 or s.lockout_minutes <= 0:
         raise ConfigError("Token and lockout settings must be positive.")
+    if s.session_max_hours * 60 < s.access_token_minutes:
+        raise ConfigError("SESSION_MAX_HOURS must allow at least one token lifetime.")
 
 
 @lru_cache

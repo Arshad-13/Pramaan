@@ -78,7 +78,7 @@ def test_token_round_trip(frozen_clock):
 def test_token_has_no_role_claim(frozen_clock):
     token, _ = create_access_token(1, 0)
     payload = jwt.decode(token, options={"verify_signature": False})
-    assert set(payload) == {"sub", "iat", "exp", "jti", "tv"}
+    assert set(payload) == {"sub", "iat", "exp", "jti", "tv", "at"}
 
 
 def test_expiry_uses_the_injectable_clock(frozen_clock):

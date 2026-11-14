@@ -1,5 +1,5 @@
 import QrScannerLib from 'qr-scanner'
-import { CameraOff, FileUp, TextCursorInput } from 'lucide-react'
+import { CameraOff, FileUp, FlipHorizontal2, Flashlight, FlashlightOff, TextCursorInput } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,11 @@ export function QrScanner({
   const [error, setError] = useState<string | null>(null)
   const [starting, setStarting] = useState(true)
   const handler = useRef(onResult)
+  const scannerRef = useRef<QrScannerLib | null>(null)
+  const [hasTorch, setHasTorch] = useState(false)
+  const [torchOn, setTorchOn] = useState(false)
+  const [cameras, setCameras] = useState<{ id: string; label: string }[]>([])
+  const [cameraIndex, setCameraIndex] = useState(0)
   useEffect(() => {
     handler.current = onResult
   }, [onResult])
@@ -35,9 +40,19 @@ export function QrScanner({
       },
       { returnDetailedScanResult: true, preferredCamera: 'environment', highlightScanRegion: true, maxScansPerSecond: 8 },
     )
+    scannerRef.current = scanner
     scanner
       .start()
-      .then(() => setStarting(false))
+      .then(async () => {
+        setStarting(false)
+        // Torch and camera choice are conveniences: absent on desktops and in older browsers.
+        try {
+          setHasTorch(Boolean(await scanner.hasFlash?.()))
+          if (typeof QrScannerLib.listCameras === 'function') setCameras(await QrScannerLib.listCameras(true))
+        } catch {
+          /* optional */
+        }
+      })
       .catch((e: unknown) => {
         setStarting(false)
         const name = e instanceof Error ? e.name : ''
@@ -48,10 +63,33 @@ export function QrScanner({
         else setError('The camera could not start. Paste the code instead.')
       })
     return () => {
+      scannerRef.current = null
       scanner.stop()
       scanner.destroy()
     }
   }, [])
+
+  async function toggleTorch() {
+    try {
+      await scannerRef.current?.toggleFlash()
+      setTorchOn(scannerRef.current?.isFlashOn() ?? false)
+    } catch {
+      setHasTorch(false)
+    }
+  }
+
+  async function nextCamera() {
+    if (cameras.length < 2) return
+    const next = (cameraIndex + 1) % cameras.length
+    try {
+      await scannerRef.current?.setCamera(cameras[next].id)
+      setCameraIndex(next)
+      setTorchOn(false)
+      setHasTorch(Boolean(await scannerRef.current?.hasFlash()))
+    } catch {
+      /* keep the current camera */
+    }
+  }
 
   if (error)
     return (
@@ -83,7 +121,19 @@ export function QrScanner({
           </p>
         )}
       </div>
-      <p className="mt-3 text-sm text-muted-foreground">Hold the prescription's QR code inside the frame.</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <p className="mr-auto text-sm text-muted-foreground">Hold the prescription's QR code inside the frame.</p>
+        {hasTorch && (
+          <Button type="button" size="sm" variant="outline" aria-pressed={torchOn} onClick={toggleTorch}>
+            {torchOn ? <FlashlightOff aria-hidden="true" /> : <Flashlight aria-hidden="true" />} Light
+          </Button>
+        )}
+        {cameras.length > 1 && (
+          <Button type="button" size="sm" variant="outline" onClick={nextCamera}>
+            <FlipHorizontal2 aria-hidden="true" /> Switch camera
+          </Button>
+        )}
+      </div>
     </div>
   )
 }

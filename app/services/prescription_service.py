@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -38,6 +38,7 @@ from app.core.qr import build_qr, new_rx_id
 from app.errors import BadRequest, Conflict, NotFound, RiskConfirmationRequired
 from app.models import (
     ApprovalStatus,
+    Dispense,
     Prescription,
     Role,
     RxStatus,
@@ -46,11 +47,15 @@ from app.models import (
     User,
 )
 from app.schemas import (
+    BreakdownItemOut,
     DrugOut,
+    FillOut,
+    InteractionOut,
     IssueIn,
     IssueOut,
     MedicineNoteOut,
     MedicineOut,
+    ModelStatusOut,
     PinOut,
     PrescriptionOut,
     RiskCheckIn,
@@ -188,6 +193,21 @@ def _assess(
     )
 
 
+def model_status() -> ModelStatusOut:
+    """What the anomaly model is doing right now, for the admin and auditor health card."""
+    state = _model_state()
+    path = Path(get_settings().anomaly_model_path)
+    modified = None
+    if path.is_file():
+        modified = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+    return ModelStatusOut(
+        status=state.status,
+        file_modified_at=modified,
+        features=list(features.FEATURE_NAMES) if state.model is not None else [],
+        weight_points=risk_mod.ANOMALY_WEIGHT if state.model is not None else 0,
+    )
+
+
 def _report_model_problem(db: Session, doctor: User) -> None:
     """A model file that exists but fails verification is a security event (once a day)."""
     state = _model_state()
@@ -211,7 +231,16 @@ def _report_model_problem(db: Session, doctor: User) -> None:
 
 
 def _risk_out(risk: risk_mod.RiskResult) -> RiskOut:
-    return RiskOut(score=risk.score, flags=risk.flags, explanations=risk.explanations)
+    return RiskOut(
+        score=risk.score,
+        flags=risk.flags,
+        explanations=risk.explanations,
+        breakdown=[BreakdownItemOut(code=c, label=lb, points=pt) for c, lb, pt in risk.breakdown],
+        interactions=[
+            InteractionOut(first=i.first, second=i.second, severity=i.severity, note=i.note)
+            for i in risk.interactions
+        ],
+    )
 
 
 def risk_check(db: Session, doctor: User, data: RiskCheckIn) -> RiskCheckOut:
@@ -240,6 +269,20 @@ def list_drugs() -> list[DrugOut]:
 # --- issuing ------------------------------------------------------------------------------------
 
 
+def _correctable(
+    db: Session, doctor: User, patient: User, rx_id: str | None
+) -> Prescription | None:
+    """The earlier prescription a correction replaces, after checking that it may be replaced."""
+    if rx_id is None:
+        return None
+    old = get_owned(db, doctor, rx_id)  # 404 unless it is this doctor's own
+    if old.patient_id != patient.id:
+        raise BadRequest("A correction must be for the same patient as the original.")
+    if display_status(old) != "ISSUED":
+        raise Conflict("Only a prescription that is unused and still valid can be corrected.")
+    return old
+
+
 def _find_patient(db: Session, public_id: str) -> User:
     patient = db.scalar(
         select(User).where(
@@ -259,6 +302,7 @@ def issue_prescription(db: Session, doctor: User, data: IssueIn) -> IssueOut:
         raise BadRequest("Your profile is missing a registration number or clinic name.")
     patient = _find_patient(db, data.patient_id)
     key = key_service.active_key(db, doctor)
+    old = _correctable(db, doctor, patient, data.supersedes)
 
     rx_id = new_rx_id()
     issued_at = clock.now_utc().replace(microsecond=0)
@@ -348,6 +392,20 @@ def issue_prescription(db: Session, doctor: User, data: IssueIn) -> IssueOut:
         pdf_sha256=hashlib.sha256(pdf_bytes).hexdigest(),
     )
     db.add(row)
+    if old is not None:
+        # Conditional UPDATE, like revoke(): it cannot race with a dispense of the old one. If the
+        # old prescription was used a moment ago, nothing is issued and the doctor is told.
+        replaced = db.execute(
+            update(Prescription)
+            .where(Prescription.id == old.id, Prescription.status == RxStatus.ISSUED)
+            .values(status=RxStatus.REVOKED, superseded_by=rx_id)
+        )
+        if replaced.rowcount != 1:
+            db.rollback()
+            raise Conflict("The earlier prescription was used or withdrawn just now.")
+        audit.append(
+            db, doctor.id, doctor.role.value, "RX_SUPERSEDED", old.id, {"replaced_by": rx_id}
+        )
     audit.append(
         db,
         doctor.id,
@@ -428,7 +486,26 @@ def display_status(row: Prescription) -> str:
     return row.status.value
 
 
-def summarise(row: Prescription, viewer: User) -> PrescriptionOut:
+def _fills_for(db: Session, rx_ids: list[str]) -> dict[str, list[FillOut]]:
+    """Dispense history for several prescriptions in one query: who handed it over and when."""
+    if not rx_ids:
+        return {}
+    rows = db.execute(
+        select(Dispense.rx_id, Dispense.fill_no, Dispense.ts, User.org_name)
+        .join(User, User.id == Dispense.pharmacist_id)
+        .where(Dispense.rx_id.in_(rx_ids))
+        .order_by(Dispense.fill_no)
+    ).all()
+    out: dict[str, list[FillOut]] = {}
+    for rx_id, fill_no, ts, pharmacy in rows:
+        out.setdefault(rx_id, []).append(FillOut(fill_no=fill_no, ts=ts, pharmacy=pharmacy))
+    return out
+
+
+def summarise(
+    row: Prescription, viewer: User, fills: list[FillOut] | None = None
+) -> PrescriptionOut:
+    is_doctor = viewer.role == Role.doctor
     base = dict(
         id=row.id,
         status=display_status(row),
@@ -441,6 +518,8 @@ def summarise(row: Prescription, viewer: User) -> PrescriptionOut:
         risk_score=row.risk_score if viewer.role == Role.doctor else None,
         flagged=viewer.role == Role.doctor and row.risk_score >= get_settings().risk_threshold,
         require_pin=row.require_pin,
+        superseded_by=row.superseded_by,
+        fills=fills or [],
     )
     try:
         p = _decrypt_payload(row)
@@ -454,6 +533,7 @@ def summarise(row: Prescription, viewer: User) -> PrescriptionOut:
         patient_name=p["patient"]["name"],
         medicines=[MedicineOut(**m) for m in p["medicines"]],
         notes=p.get("notes", ""),
+        patient_id=p["patient"].get("id") if is_doctor else None,
     )
 
 
@@ -465,11 +545,13 @@ def list_mine(db: Session, user: User, limit: int = 100) -> list[PrescriptionOut
         .order_by(Prescription.issued_at.desc())
         .limit(limit)
     ).all()
-    return [summarise(r, user) for r in rows]
+    fills = _fills_for(db, [r.id for r in rows])
+    return [summarise(r, user, fills.get(r.id)) for r in rows]
 
 
 def get_summary(db: Session, user: User, rx_id: str) -> PrescriptionOut:
-    return summarise(get_owned(db, user, rx_id), user)
+    row = get_owned(db, user, rx_id)
+    return summarise(row, user, _fills_for(db, [row.id]).get(row.id))
 
 
 def get_pdf(db: Session, user: User, rx_id: str) -> bytes:
@@ -506,7 +588,7 @@ def revoke(db: Session, doctor: User, rx_id: str) -> PrescriptionOut:
     audit.append(db, doctor.id, doctor.role.value, "RX_REVOKED", row.id, {})
     db.commit()
     db.refresh(row)
-    return summarise(row, doctor)
+    return summarise(row, doctor, _fills_for(db, [row.id]).get(row.id))
 
 
 def lookup_patient(db: Session, *, email: str | None, code: str | None) -> User:

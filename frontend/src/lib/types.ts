@@ -14,6 +14,11 @@ export interface User {
   approval_status: ApprovalStatus
   is_active: boolean
   created_at: string
+  /** Two-factor sign-in is switched on for this account. */
+  mfa_enabled?: boolean
+  /** Only on /auth/me: when this session's token ends, and the hard limit for renewing it. */
+  session_expires_at?: string
+  session_ends_by?: string
 }
 
 export interface UserList {
@@ -63,6 +68,17 @@ export interface Prescription {
   flagged?: boolean
   require_pin: boolean
   readable: boolean
+  /** Doctor only: the patient's public id, so a prescription can be repeated or corrected. */
+  patient_id?: string | null
+  /** Set when a corrected prescription replaced this one. */
+  superseded_by?: string | null
+  fills?: Fill[]
+}
+
+export interface Fill {
+  fill_no: number
+  ts: string
+  pharmacy: string | null
 }
 
 export interface IssueResult {
@@ -72,7 +88,7 @@ export interface IssueResult {
   max_fills: number
   key_id: string
   fingerprint: string
-  risk: { score: number; flags: string[]; explanations: string[] }
+  risk: RiskInfo
   warnings: string[]
 }
 
@@ -155,10 +171,26 @@ export interface PinInfo {
   step_seconds: number
 }
 
+export interface BreakdownItem {
+  code: string
+  label: string
+  points: number
+}
+
+export interface Interaction {
+  first: string
+  second: string
+  severity: 'MAJOR' | 'MODERATE'
+  note: string
+}
+
 export interface RiskInfo {
   score: number
   flags: string[]
   explanations: string[]
+  /** The doctor's view only: how the score adds up. */
+  breakdown?: BreakdownItem[]
+  interactions?: Interaction[]
 }
 
 export interface MedicineNote {
@@ -201,6 +233,8 @@ export interface AuditEntry {
 export interface AuditPage {
   items: AuditEntry[]
   total: number
+  /** Every action name, for the filter menu. */
+  actions?: string[]
 }
 
 export interface AuditVerify {
@@ -223,6 +257,35 @@ export interface SecurityEvent {
   event_type: string
   severity: 'LOW' | 'MEDIUM' | 'HIGH'
   details_json: string
+  status?: 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED'
+  handled_at?: string | null
+  note?: string | null
+}
+
+export interface ModelStatus {
+  status: 'OK' | 'MISSING' | 'UNSIGNED' | 'BAD_SIGNATURE' | 'CORRUPT'
+  file_modified_at: string | null
+  features: string[]
+  weight_points: number
+}
+
+export interface HistoryItem {
+  ts: string
+  result: string
+  rx_ref: string | null
+  reasons: string[]
+}
+
+export interface DispenseItem {
+  ts: string
+  rx_ref: string
+  fill_no: number
+}
+
+export interface MfaEnrol {
+  secret: string
+  otpauth_uri: string
+  qr_matrix: boolean[][]
 }
 
 export interface RecentActivity {

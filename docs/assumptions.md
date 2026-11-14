@@ -26,7 +26,7 @@ What the design takes for granted. If one of these is false, the matching guaran
 
 - **The sign-in response also returns the session token in its JSON body**, next to the HttpOnly cookie. The browser app ignores it; the attack suite, scripts and tests use it as a Bearer token. Script injection on the sign-in page could read that response, so a production build for browsers only would drop it. CSRF protection applies only to cookie sessions, which is why Bearer use does not need it.
 - **One process.** Rate limits and lockout windows live in memory; several workers would each keep their own counters.
-- **No schema migrations.** Tables are created from the models, and the database file is stamped with a schema version (`PRAGMA user_version`). The app refuses to start on a different version instead of guessing; for the demo, re-seed (`scripts/seed_demo.py --reset`).
+- **Small, hand-written schema migrations.** Tables are created from the models, and the database file is stamped with a schema version (`PRAGMA user_version`). An older file is upgraded in place by the numbered steps in `app/db.py` (`MIGRATIONS`, add-column and add-index only), after a consistent backup copy (`<file>.bak-v<old version>`, made with SQLite's backup call so recent commits in the WAL file are included). A newer or unknown version stops the app instead of guessing. There is no migration framework: it is enough for additive changes, and anything else means re-seeding (`scripts/seed_demo.py --reset`).
 - **The CSP allows inline styles** (`style-src 'unsafe-inline'`); scripts are restricted to the app's own origin.
 
 ## Operational

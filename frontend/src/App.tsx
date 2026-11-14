@@ -8,6 +8,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { RequireAuth } from '@/components/RequireAuth'
 import { RouteEffects } from '@/components/RouteEffects'
 import { AuthProvider } from '@/lib/auth'
+import { LocaleProvider } from '@/components/LocaleProvider'
 import Dashboard from '@/pages/Dashboard'
 import Login from '@/pages/Login'
 import NotFound from '@/pages/NotFound'
@@ -21,6 +22,7 @@ const Audit = lazy(() => import('@/pages/Audit'))
 const NewPrescription = lazy(() => import('@/pages/NewPrescription'))
 const MyPrescriptions = lazy(() => import('@/pages/MyPrescriptions'))
 const Verify = lazy(() => import('@/pages/Verify'))
+const VerifyHistory = lazy(() => import('@/pages/VerifyHistory'))
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 10_000, refetchOnWindowFocus: false } },
@@ -28,6 +30,7 @@ const queryClient = new QueryClient({
 
 export default function App() {
   return (
+    <LocaleProvider>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <BrowserRouter>
@@ -72,6 +75,14 @@ export default function App() {
                 }
               />
               <Route
+                path="verify/history"
+                element={
+                  <RequireAuth roles={['pharmacist']}>
+                    <VerifyHistory />
+                  </RequireAuth>
+                }
+              />
+              <Route
                 path="admin"
                 element={
                   <RequireAuth roles={['admin']}>
@@ -96,5 +107,6 @@ export default function App() {
         <Toaster position="bottom-right" />
       </AuthProvider>
     </QueryClientProvider>
+    </LocaleProvider>
   )
 }

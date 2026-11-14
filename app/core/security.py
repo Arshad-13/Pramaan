@@ -110,15 +110,28 @@ class Claims:
     token_version: int
     jti: str
     expires_at: datetime
+    auth_time: datetime  # when the person actually signed in; renewals keep this value
 
 
 def _secret() -> str:
     return get_settings().secret_key
 
 
-def create_access_token(user_id: int, token_version: int) -> tuple[str, Claims]:
+def session_ends_by(auth_time: datetime) -> datetime:
+    """The hard end of a session: renewing never goes past this."""
+    return auth_time + timedelta(hours=get_settings().session_max_hours)
+
+
+def create_access_token(
+    user_id: int, token_version: int, auth_time: datetime | None = None
+) -> tuple[str, Claims]:
+    """A signed session token. `auth_time` is the original sign-in moment: a renewed session keeps
+    it, so the hard cap on session age cannot be pushed back by renewing."""
     now = clock.now_utc()
-    expires_at = now + timedelta(minutes=get_settings().access_token_minutes)
+    auth_time = (auth_time or now).replace(microsecond=0)
+    expires_at = min(
+        now + timedelta(minutes=get_settings().access_token_minutes), session_ends_by(auth_time)
+    )
     jti = uuid.uuid4().hex
     token = jwt.encode(
         {
@@ -127,11 +140,12 @@ def create_access_token(user_id: int, token_version: int) -> tuple[str, Claims]:
             "exp": int(expires_at.timestamp()),
             "jti": jti,
             "tv": token_version,
+            "at": int(auth_time.timestamp()),
         },
         _secret(),
         algorithm=ALGORITHM,
     )
-    return token, Claims(user_id, token_version, jti, expires_at)
+    return token, Claims(user_id, token_version, jti, expires_at, auth_time)
 
 
 def decode_access_token(token: str) -> Claims:
@@ -146,17 +160,64 @@ def decode_access_token(token: str) -> Claims:
                 "verify_iat": False,
             },
         )
+        if payload.get("typ") is not None:  # a purpose-specific token (e.g. the MFA step)
+            raise TokenError("invalid token")
+        tz = clock.now_utc().tzinfo
         claims = Claims(
             user_id=int(payload["sub"]),
             token_version=int(payload["tv"]),
             jti=str(payload["jti"]),
-            expires_at=datetime.fromtimestamp(int(payload["exp"]), tz=clock.now_utc().tzinfo),
+            expires_at=datetime.fromtimestamp(int(payload["exp"]), tz=tz),
+            auth_time=datetime.fromtimestamp(int(payload.get("at", payload["iat"])), tz=tz),
         )
     except (jwt.PyJWTError, ValueError, TypeError, KeyError) as exc:
         raise TokenError("invalid token") from exc
     if clock.now_utc() >= claims.expires_at:  # our clock, not the wall clock (testable)
         raise TokenError("expired token")
     return claims
+
+
+# --- the second sign-in step (two-factor) ----------------------------------------------------------
+# After a correct password, an account with two-factor sign-in gets this short-lived token instead
+# of a session. It proves "the password was right", nothing else: it has no `jti`, carries
+# `typ: mfa`, and `decode_access_token` refuses anything with a `typ`, so it cannot be used as a
+# session.
+
+MFA_TOKEN_MINUTES = 5
+
+
+def create_mfa_token(user_id: int, token_version: int) -> str:
+    now = clock.now_utc()
+    return jwt.encode(
+        {
+            "sub": str(user_id),
+            "iat": int(now.timestamp()),
+            "exp": int((now + timedelta(minutes=MFA_TOKEN_MINUTES)).timestamp()),
+            "tv": token_version,
+            "typ": "mfa",
+        },
+        _secret(),
+        algorithm=ALGORITHM,
+    )
+
+
+def decode_mfa_token(token: str) -> tuple[int, int]:
+    """Returns (user_id, token_version) or raises TokenError."""
+    try:
+        payload = jwt.decode(
+            token,
+            _secret(),
+            algorithms=[ALGORITHM],
+            options={"require": ["exp", "sub", "tv", "typ"], "verify_exp": False},
+        )
+        if payload["typ"] != "mfa":
+            raise TokenError("invalid token")
+        user_id, version, expires = int(payload["sub"]), int(payload["tv"]), int(payload["exp"])
+    except (jwt.PyJWTError, ValueError, TypeError, KeyError) as exc:
+        raise TokenError("invalid token") from exc
+    if clock.now_utc().timestamp() >= expires:
+        raise TokenError("expired token")
+    return user_id, version
 
 
 # --- CSRF + cookies -------------------------------------------------------------------------------

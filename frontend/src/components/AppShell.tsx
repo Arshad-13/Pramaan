@@ -3,17 +3,21 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { Logo } from '@/components/Logo'
+import { SessionGuard } from '@/components/SessionGuard'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useAuth } from '@/lib/auth'
+import { useT } from '@/lib/i18n'
 import { navFor } from '@/lib/nav'
 import { ROLE_LABEL, type Role } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 function NavList({ role, onNavigate }: { role?: Role; onNavigate?: () => void }) {
+  const t = useT()
   return (
     <nav aria-label="Main" className="flex flex-col gap-0.5">
-      {navFor(role).map(({ to, label, icon: Icon, end }) => (
+      {navFor(role).map(({ to, key, icon: Icon, end }) => (
         <NavLink
           key={to}
           to={to}
@@ -21,30 +25,37 @@ function NavList({ role, onNavigate }: { role?: Role; onNavigate?: () => void })
           onClick={onNavigate}
           className={({ isActive }) =>
             cn(
-              'flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors duration-150',
+              'relative flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors duration-150',
               isActive
-                ? 'bg-surface text-foreground shadow-[inset_0_0_0_1px_var(--border)]'
+                ? 'bg-surface text-foreground shadow-[inset_0_0_0_1px_var(--border)] before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-verified-solid'
                 : 'text-muted-foreground hover:bg-surface hover:text-foreground',
             )
           }
         >
           <Icon className="size-4 shrink-0" aria-hidden="true" />
-          {label}
+          {t(key)}
         </NavLink>
       ))}
     </nav>
   )
 }
 
+/** Up to two initials, skipping titles such as "Dr." so "Dr. A. Shah" reads AS. */
+function initials(name: string): string {
+  const parts = name.split(/\s+/).filter((p) => p && !/^(dr|mr|mrs|ms)\.?$/i.test(p))
+  return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] ?? name).slice(0, 2)).toUpperCase()
+}
+
 function AccountBlock() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const t = useT()
   if (!user) return null
   return (
     <div className="flex items-center gap-2 border-t border-border px-2 pt-3">
       <NavLink
         to="/account"
-        title="Your account"
+        title={t('shell.account')}
         className={({ isActive }) =>
           cn(
             'min-w-0 flex-1 rounded-md px-2 py-1 transition-colors duration-150 hover:bg-surface',
@@ -52,13 +63,20 @@ function AccountBlock() {
           )
         }
       >
-        <span className="block truncate text-sm font-medium">{user.name}</span>
-        <span className="block truncate text-xs text-muted-foreground">{ROLE_LABEL[user.role]}</span>
+        <span className="flex items-center gap-2.5">
+          <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+            {initials(user.name)}
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-medium">{user.name}</span>
+            <span className="block truncate text-xs text-muted-foreground">{ROLE_LABEL[user.role]}</span>
+          </span>
+        </span>
       </NavLink>
       <button
         type="button"
-        aria-label="Sign out"
-        title="Sign out"
+        aria-label={t('shell.signOut')}
+        title={t('shell.signOut')}
         onClick={async () => {
           try {
             await signOut()
@@ -79,14 +97,16 @@ function AccountBlock() {
 export function AppShell() {
   const [open, setOpen] = useState(false)
   const { user } = useAuth()
+  const t = useT()
 
   return (
     <div className="min-h-dvh md:grid md:grid-cols-[15rem_1fr]">
+      <SessionGuard />
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[var(--z-toast)] focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground"
       >
-        Skip to content
+        {t('app.skip')}
       </a>
 
       <aside className="hidden border-r border-border bg-surface-2 md:sticky md:top-0 md:flex md:h-dvh md:flex-col md:px-3 md:py-4">
@@ -96,7 +116,8 @@ export function AppShell() {
         <NavList role={user?.role} />
         <div className="mt-auto flex flex-col gap-3 pt-4">
           <AccountBlock />
-          <div className="flex justify-end px-1">
+          <div className="flex items-center justify-between gap-2 px-1">
+            <LanguageSwitcher />
             <ThemeToggle />
           </div>
         </div>
@@ -111,7 +132,7 @@ export function AppShell() {
               type="button"
               aria-expanded={open}
               aria-controls="mobile-nav"
-              aria-label={open ? 'Close menu' : 'Open menu'}
+              aria-label={open ? t('shell.menuClose') : t('shell.menuOpen')}
               onClick={() => setOpen((v) => !v)}
               className="grid size-10 place-items-center rounded-md hover:bg-surface"
             >
@@ -123,6 +144,7 @@ export function AppShell() {
           <div id="mobile-nav" className="space-y-3 border-t border-border px-3 py-3">
             <NavList role={user?.role} onNavigate={() => setOpen(false)} />
             <AccountBlock />
+            <LanguageSwitcher />
           </div>
         )}
       </header>
@@ -132,7 +154,7 @@ export function AppShell() {
           <Outlet />
         </main>
         <footer className="border-t border-border px-4 py-4 text-xs text-muted-foreground md:px-10">
-          Academic demo. Not for clinical use.
+          {t('shell.footer')}
         </footer>
       </div>
     </div>

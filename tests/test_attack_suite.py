@@ -41,8 +41,10 @@ def test_attack_is_detected_or_blocked(ctx, number):
     assert result.detected, f"#{number} {title}: NOT CAUGHT. {result.evidence}"
 
 
-def test_all_sixteen_required_attacks_are_present():
-    assert [n for n, _, _ in sorted(attack_suite.ATTACKS)] == list(range(1, 17))
+def test_all_sixteen_required_attacks_are_present_and_the_later_ones_follow():
+    numbers = [n for n, _, _ in sorted(attack_suite.ATTACKS)]
+    assert numbers[:16] == list(range(1, 17))  # the sixteen of the specification
+    assert numbers == list(range(1, len(numbers) + 1))  # 17 onward were added with plan 2
 
 
 def test_the_results_table_reports_every_attack(ctx):

@@ -10,7 +10,7 @@ Prescription contents (patient health information), the doctors' signing keys, t
 
 | Threat | Example | Mitigation |
 |---|---|---|
-| **S**poofing | A fake doctor; a fake pharmacist | Doctors exist only if an admin creates them and they activate with a one-time token; each has their own ECDSA key. Pharmacists need admin approval. argon2id passwords, JWT revoked through `token_version`, lockout plus per-IP and per-account rate limits. |
+| **S**poofing | A fake doctor; a fake pharmacist; a stolen password | Doctors exist only if an admin creates them and they activate with a one-time token; each has their own ECDSA key. Pharmacists need admin approval. argon2id passwords, JWT revoked through `token_version`, lockout plus per-IP and per-account rate limits. Optional authenticator-app second step (TOTP) with single-use recovery codes; the session has a hard age cap even when renewed. |
 | **T**ampering | Edit a dose on a PDF or photo; edit a database row | The signed payload is the only truth (what you see is what was signed). Uploads are compared field by field with a redrawn copy, plus OCR and the PDF text layer. Stored payloads are AES-GCM encrypted and hash-checked; plain columns are cross-checked against the signed payload. |
 | **R**epudiation | A doctor denies issuing; a pharmacist denies dispensing | Digital signature; `dispenses` table; HMAC-chained audit log with signed checkpoints and an external anchor. |
 | **I**nformation disclosure | Stolen database or storage folder; over-broad lookups | Envelope encryption of payload and PDF; private keys protected by the doctor's password; pharmacists see a masked patient name and nothing unless the signature verified; exact-match patient lookup. |
@@ -19,6 +19,10 @@ Prescription contents (patient health information), the doctors' signing keys, t
 | Replay | The same prescription at many pharmacies | Atomic dispense, `UNIQUE(rx_id, fill_no)`, expiry in the signed payload, cross-pharmacy alerts. |
 | Stolen or photographed prescription | Someone else redeems it | The patient's PIN; the QR alone is not enough. |
 | Insider abuse | A database administrator edits records or logs | Encrypted and signed payloads; a hash chain keyed with a secret the database does not hold; signed checkpoints; anchors outside the database. |
+| Superseded prescription | A doctor corrects a prescription, but the patient keeps using the old one | Signing a correction withdraws the original in the same transaction (`superseded_by`); the old one verifies as Revoked with the reason `RX_SUPERSEDED` and cannot be dispensed. Only an unused, unexpired prescription of the same doctor and patient can be corrected. |
+| Second-factor guessing or replay | Someone with the password tries codes, or reuses a code they saw | Six-digit TOTP codes are accepted once (the last used time-step is stored), wrong codes count towards the same lockout as wrong passwords, the secret is encrypted under the master key, recovery codes are stored only as keyed hashes. |
+| Closing an alert to hide it | The person who reads the log clears what it flagged | Only administrators can acknowledge or resolve an alert; the auditor can read alerts and the log but not close them. Each change is itself an audit entry. |
+| Taking a copy of the log | Exporting the audit log to alter or leak it | Export is auditor-only, capped in size, defuses spreadsheet formulas (`=`, `+`, `-`, `@`) and is recorded as `AUDIT_EXPORTED`. The copy cannot be passed off as the original: the chain can still be verified in the system. |
 
 ## The four adversaries
 

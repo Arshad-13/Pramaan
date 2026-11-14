@@ -62,6 +62,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
             raise Forbidden("Missing or invalid CSRF token.")
 
     request.state.jti = claims.jti
+    request.state.claims = claims
     return user
 
 

@@ -115,7 +115,13 @@ def test_issue_returns_an_id_and_stores_only_ciphertext(w):
     out = response.json()
     rx_id = out["rx_id"]
     assert len(rx_id) == 36 and out["max_fills"] == 1 and len(out["fingerprint"]) == 14
-    assert out["risk"] == {"score": 0, "flags": [], "explanations": []}
+    assert out["risk"] == {
+        "score": 0,
+        "flags": [],
+        "explanations": [],
+        "breakdown": [],
+        "interactions": [],
+    }
     assert out["warnings"] == ["MODEL_UNAVAILABLE"]  # rules only until the anomaly model exists
     assert "qr" not in json.dumps(out).lower()  # the QR text is only inside the PDF
 

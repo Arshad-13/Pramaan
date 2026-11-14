@@ -32,6 +32,13 @@ const ACTION_LABEL: Record<string, string> = {
   CHECKPOINT: 'Signed checkpoint',
   AUDIT_VERIFIED: 'Audit chain checked',
   KEK_ROTATED: 'Master key rotated',
+  SESSION_RENEWED: 'Session extended',
+  SECURITY_EVENT_HANDLED: 'Security alert handled',
+  RX_SUPERSEDED: 'Prescription replaced by a correction',
+  MFA_ENABLED: 'Two-step sign-in turned on',
+  MFA_DISABLED: 'Two-step sign-in turned off',
+  MFA_RECOVERY_USED: 'Recovery code used',
+  AUDIT_EXPORTED: 'Audit log exported',
 }
 
 export function actionLabel(action: string): string {

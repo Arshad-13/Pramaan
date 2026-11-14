@@ -1,6 +1,7 @@
 /** "Good morning" / "Good afternoon" / "Good evening" for the local time. */
 export function dayPartGreeting(now = new Date()): string {
   const hour = now.getHours()
+  if (hour < 5) return 'Working late' // "Good morning" at 2 am reads as a mistake
   return hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
 }
 

@@ -59,7 +59,13 @@ def test_a_genuine_prescription_verifies(w):
     }  # fmt: skip
     assert out["doctor"] == {"name": "Dr. A. Shah", "license_no": "GJ-12345"}
     assert out["medicines"] == [med()]
-    assert out["risk"] == {"score": 0, "flags": [], "explanations": []}
+    assert out["risk"] == {
+        "score": 0,
+        "flags": [],
+        "explanations": [],
+        "breakdown": [],
+        "interactions": [],
+    }
     assert out["issued_at"].endswith("Z") and out["expires_at"].endswith("Z")
 
 

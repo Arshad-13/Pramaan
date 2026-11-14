@@ -115,8 +115,8 @@
   --color-warning-border: var(--warning-border);
 
   /* One UI sans; serif is for page titles and verdicts only; mono for hashes, IDs, PINs. */
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Source Serif 4 Variable", ui-serif, Georgia, serif;
+  --font-sans: "Inter Variable", "Noto Sans Devanagari", "Noto Sans Gujarati", "Nirmala UI", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Source Serif 4 Variable", "Noto Serif Devanagari", "Noto Serif Gujarati", "Nirmala UI", ui-serif, Georgia, serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Mono", monospace;
 
   /* Fixed rem scale, ratio ~1.2 (product UI: no fluid type) */

@@ -1,4 +1,6 @@
 /** Turning a verification result into the step-by-step evidence the pharmacist sees. */
+import { translate, type MessageKey, type Translate } from '@/lib/i18n'
+import { en } from '@/lib/i18n/en'
 import type { VerifyResult } from '@/lib/types'
 
 export type StepState = 'pass' | 'fail' | 'warn' | 'skipped'
@@ -6,146 +8,161 @@ export type StepState = 'pass' | 'fail' | 'warn' | 'skipped'
 export interface Step {
   id: string
   label: string
+  /** Translation key for the label. */
+  labelKey: MessageKey
   state: StepState
   note?: string
+  /** Translation key for the note (the English text is in `note`). */
+  noteKey?: MessageKey
 }
+
+const english: Translate = (key, vars) => translate('en', key, vars)
 
 /**
  * The line under "Verified record". "Dispense according to this record" is only right when the
  * prescription is cleared; under any other verdict it must not read like an instruction to hand
  * the medicine over.
  */
-export function recordGuidance(result: VerifyResult): string {
-  if (result.can_dispense) return 'Dispense according to this verified record, not the paper.'
-  if (result.result === 'TAMPERED') return 'This is what the doctor signed. The page in front of you does not match it.'
-  if (result.result === 'REVIEW_REQUIRED') return 'This is what the doctor signed. Compare it with the page by eye before deciding.'
-  return 'This is what the doctor signed. It is not cleared for dispensing.'
+export function recordGuidanceKey(result: VerifyResult): MessageKey {
+  if (result.can_dispense) return 'record.guidance.dispense'
+  if (result.result === 'TAMPERED') return 'record.guidance.tampered'
+  if (result.result === 'REVIEW_REQUIRED') return 'record.guidance.review'
+  return 'record.guidance.other'
 }
 
-/** Plain-language text for every reason code the server can return. */
-export const REASON_TEXT: Record<string, string> = {
-  MALFORMED_QR: 'This is not a Pramaan prescription code.',
-  NOT_FOUND: 'No prescription with this identifier exists.',
-  DB_RECORD_ALTERED: 'The stored record does not match what the doctor signed.',
-  QR_HASH_MISMATCH: 'The code does not match the signed prescription.',
-  INVALID_SIGNATURE: "The doctor's digital signature is not valid.",
-  KEY_ID_MISMATCH: 'The code names a different signing key than the prescription.',
-  KEY_NOT_FOUND: "The doctor's signing key could not be found.",
-  DOCTOR_KEY_REVOKED: "The doctor's signing key was revoked.",
-  DOCTOR_SUSPENDED: "The doctor's account was suspended.",
-  RX_REVOKED: 'The doctor withdrew this prescription.',
-  FULLY_DISPENSED: 'Every permitted fill has already been dispensed.',
-  RX_EXPIRED: 'The validity period set by the doctor has ended.',
-  RISK_ABOVE_THRESHOLD: 'The contents look unusual and need your review.',
-  NO_QR_IN_FILE: 'No Pramaan QR code could be found in that file. Retake the photo with the whole page in view.',
-  CONTENT_MISMATCH: 'Some printed fields differ from what the doctor signed.',
-  EXTRA_CONTENT: 'There is writing on the page that the doctor did not sign.',
-  HIDDEN_TEXT_OR_OVERLAY: 'The PDF hides different text behind what is shown, or covers the original.',
-  UNREADABLE_CONTENT: 'Some important fields could not be read reliably. Compare them with the verified record.',
-  LOW_ALIGNMENT: 'The page was too tilted, curled or cut off to line up with the original.',
+export function recordGuidance(result: VerifyResult, t: Translate = english): string {
+  return t(recordGuidanceKey(result))
 }
 
-export function reasonText(code: string): string {
+/** What to do next, in one sentence, for each verdict: shown right under the verdict. */
+export function nextActionKey(result: VerifyResult): MessageKey {
+  if (result.can_dispense && result.result === 'REVIEW_REQUIRED') return 'next.reviewDispense'
+  if (result.can_dispense) return 'next.dispense'
+  if (result.reason_codes.includes('RX_SUPERSEDED')) return 'next.superseded'
+  switch (result.result) {
+    case 'TAMPERED':
+      return 'next.tampered'
+    case 'REVOKED':
+      return 'next.revoked'
+    case 'ALREADY_USED':
+      return 'next.used'
+    case 'EXPIRED':
+      return 'next.expired'
+    case 'SUSPICIOUS':
+      return 'next.suspicious'
+    case 'REVIEW_REQUIRED':
+      return 'next.review'
+    case 'NOT_FOUND':
+      return 'next.notFound'
+    case 'INVALID_QR':
+      return 'next.invalid'
+    default:
+      return 'next.default'
+  }
+}
+
+export function nextAction(result: VerifyResult, t: Translate = english): string {
+  return t(nextActionKey(result))
+}
+
+/** Plain-language text for every reason code the server can return (English; see i18n for others). */
+export const REASON_TEXT: Record<string, string> = Object.fromEntries(
+  Object.entries(en)
+    .filter(([key]) => key.startsWith('reason.'))
+    .map(([key, text]) => [key.slice('reason.'.length), text]),
+)
+
+/** The text for a reason code, in the language of `t` when one is given (English otherwise). */
+export function reasonText(code: string, t?: Translate): string {
+  const key = `reason.${code}` as MessageKey
+  if (t && key in en) return t(key)
   return REASON_TEXT[code] ?? code
 }
 
 const HARD_FAILURES = new Set(['INVALID_QR', 'NOT_FOUND', 'TAMPERED'])
 
+type StepId = 'read' | 'found' | 'record' | 'signature' | 'content' | 'standing' | 'status' | 'risk'
+const LABELS: Record<StepId, MessageKey> = {
+  read: 'step.read',
+  found: 'step.found',
+  record: 'step.record',
+  signature: 'step.signature',
+  content: 'step.content',
+  standing: 'step.standing',
+  status: 'step.status',
+  risk: 'step.risk',
+}
+
+function step(id: StepId, state: StepState, reasonCode?: string): Step {
+  const labelKey = LABELS[id]
+  const noteKey = reasonCode ? (`reason.${reasonCode}` as MessageKey) : undefined
+  return { id, label: en[labelKey], labelKey, state, note: reasonCode ? reasonText(reasonCode) : undefined, noteKey }
+}
+
+function skipped(id: StepId): Step {
+  const labelKey = LABELS[id]
+  return { id, label: en[labelKey], labelKey, state: 'skipped', note: en['state.skipped'], noteKey: 'state.skipped' }
+}
+
 /** The seven checks, in pipeline order. Steps after a hard failure are shown as skipped. */
 export function timelineSteps(r: VerifyResult): Step[] {
   const has = (...codes: string[]) => codes.some((c) => r.reason_codes.includes(c))
   const hard = HARD_FAILURES.has(r.result)
-  const skipped = (id: string, label: string): Step => ({ id, label, state: 'skipped', note: 'Not checked' })
+  const firstOf = (...codes: string[]) => codes.find((c) => r.reason_codes.includes(c))
 
-  const steps: Step[] = []
-  steps.push({
-    id: 'read',
-    label: 'Code read',
-    state: r.result === 'INVALID_QR' ? 'fail' : 'pass',
-    note: r.result === 'INVALID_QR' ? reasonText(has('NO_QR_IN_FILE') ? 'NO_QR_IN_FILE' : 'MALFORMED_QR') : undefined,
-  })
   if (r.result === 'INVALID_QR') {
     return [
-      steps[0],
-      skipped('found', 'Prescription found'),
-      skipped('record', 'Record unaltered'),
-      skipped('signature', "Doctor's signature"),
-      skipped('standing', 'Doctor in good standing'),
-      skipped('status', 'Unused, current and not withdrawn'),
-      skipped('risk', 'Risk check'),
+      step('read', 'fail', has('NO_QR_IN_FILE') ? 'NO_QR_IN_FILE' : 'MALFORMED_QR'),
+      skipped('found'),
+      skipped('record'),
+      skipped('signature'),
+      skipped('standing'),
+      skipped('status'),
+      skipped('risk'),
     ]
   }
   if (r.result === 'NOT_FOUND') {
     return [
-      steps[0],
-      { id: 'found', label: 'Prescription found', state: 'fail', note: reasonText('NOT_FOUND') },
-      skipped('record', 'Record unaltered'),
-      skipped('signature', "Doctor's signature"),
-      skipped('standing', 'Doctor in good standing'),
-      skipped('status', 'Unused, current and not withdrawn'),
-      skipped('risk', 'Risk check'),
+      step('read', 'pass'),
+      step('found', 'fail', 'NOT_FOUND'),
+      skipped('record'),
+      skipped('signature'),
+      skipped('standing'),
+      skipped('status'),
+      skipped('risk'),
     ]
   }
 
-  steps.push({ id: 'found', label: 'Prescription found', state: 'pass' })
+  const steps: Step[] = [step('read', 'pass'), step('found', 'pass')]
   const recordBad = has('DB_RECORD_ALTERED', 'QR_HASH_MISMATCH')
-  steps.push({
-    id: 'record',
-    label: 'Record unaltered',
-    state: recordBad ? 'fail' : 'pass',
-    note: recordBad ? reasonText(r.reason_codes.find((c) => c === 'QR_HASH_MISMATCH') ?? 'DB_RECORD_ALTERED') : undefined,
-  })
+  steps.push(
+    recordBad
+      ? step('record', 'fail', r.reason_codes.find((c) => c === 'QR_HASH_MISMATCH') ?? 'DB_RECORD_ALTERED')
+      : step('record', 'pass'),
+  )
   const contentRan = (r.checks?.content_check ?? 'NOT_CHECKED') !== 'NOT_CHECKED'
-  const sigBad = has('INVALID_SIGNATURE', 'KEY_ID_MISMATCH', 'KEY_NOT_FOUND')
-  steps.push({
-    id: 'signature',
-    label: "Doctor's signature",
-    state: sigBad ? 'fail' : 'pass',
-    note: sigBad ? reasonText(r.reason_codes.find((c) => ['INVALID_SIGNATURE', 'KEY_ID_MISMATCH', 'KEY_NOT_FOUND'].includes(c))!) : undefined,
-  })
+  const sigCode = firstOf('INVALID_SIGNATURE', 'KEY_ID_MISMATCH', 'KEY_NOT_FOUND')
+  steps.push(sigCode ? step('signature', 'fail', sigCode) : step('signature', 'pass'))
+
   const content = r.checks?.content_check ?? 'NOT_CHECKED'
   if (content !== 'NOT_CHECKED') {
-    const bad = has('CONTENT_MISMATCH', 'EXTRA_CONTENT', 'HIDDEN_TEXT_OR_OVERLAY')
-    steps.push({
-      id: 'content',
-      label: 'Page matches what was signed',
-      state: bad ? 'fail' : content === 'MATCH' ? 'pass' : 'warn',
-      note: bad
-        ? reasonText(r.reason_codes.find((c) => ['HIDDEN_TEXT_OR_OVERLAY', 'EXTRA_CONTENT', 'CONTENT_MISMATCH'].includes(c))!)
+    const badCode = firstOf('HIDDEN_TEXT_OR_OVERLAY', 'EXTRA_CONTENT', 'CONTENT_MISMATCH')
+    steps.push(
+      badCode
+        ? step('content', 'fail', badCode)
         : content === 'MATCH'
-          ? undefined
-          : reasonText('UNREADABLE_CONTENT'),
-    })
+          ? step('content', 'pass')
+          : step('content', 'warn', 'UNREADABLE_CONTENT'),
+    )
   }
   if (hard && !contentRan) {
-    return [
-      ...steps,
-      skipped('standing', 'Doctor in good standing'),
-      skipped('status', 'Unused, current and not withdrawn'),
-      skipped('risk', 'Risk check'),
-    ]
+    return [...steps, skipped('standing'), skipped('status'), skipped('risk')]
   }
 
-  const standingBad = has('DOCTOR_KEY_REVOKED', 'DOCTOR_SUSPENDED')
-  steps.push({
-    id: 'standing',
-    label: 'Doctor in good standing',
-    state: standingBad ? 'fail' : 'pass',
-    note: standingBad ? reasonText(r.reason_codes.find((c) => c.startsWith('DOCTOR_'))!) : undefined,
-  })
-  const statusCode = ['RX_REVOKED', 'FULLY_DISPENSED', 'RX_EXPIRED'].find((c) => has(c))
-  steps.push({
-    id: 'status',
-    label: 'Unused, current and not withdrawn',
-    state: statusCode ? 'fail' : 'pass',
-    note: statusCode ? reasonText(statusCode) : undefined,
-  })
-  const risky = has('RISK_ABOVE_THRESHOLD')
-  steps.push({
-    id: 'risk',
-    label: 'Risk check',
-    state: risky ? 'warn' : 'pass',
-    note: risky ? reasonText('RISK_ABOVE_THRESHOLD') : undefined,
-  })
+  const standingCode = r.reason_codes.find((c) => c.startsWith('DOCTOR_'))
+  steps.push(has('DOCTOR_KEY_REVOKED', 'DOCTOR_SUSPENDED') && standingCode ? step('standing', 'fail', standingCode) : step('standing', 'pass'))
+  const statusCode = firstOf('RX_SUPERSEDED', 'RX_REVOKED', 'FULLY_DISPENSED', 'RX_EXPIRED')
+  steps.push(statusCode ? step('status', 'fail', statusCode) : step('status', 'pass'))
+  steps.push(has('RISK_ABOVE_THRESHOLD') ? step('risk', 'warn', 'RISK_ABOVE_THRESHOLD') : step('risk', 'pass'))
   return steps
 }

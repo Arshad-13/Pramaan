@@ -23,7 +23,7 @@ from typing import Any
 
 import numpy as np
 
-from app.ai import drug_match
+from app.ai import drug_match, interactions
 from app.ai.features import (
     BASELINE_DAYS,
     RECENT_DAYS,
@@ -64,6 +64,7 @@ SPECIALTIES: dict[str, list[str]] = {
 CHRONIC = {"cardiology", "diabetology", "psychiatry"}
 CONTROLLED_POOL = ["Alprazolam", "Diazepam", "Clonazepam", "Zolpidem", "Tramadol", "Codeine"]
 
+MODERATE_PAIR_RATE = 0.15  # share of normal prescriptions allowed a moderate pair
 OFF_LIST_RATE = 0.03  # share of medicine lines outside the doctor's usual list
 DAYS, WARMUP_DAYS, TRAIN_END_DAY = 130, 60, 105
 FAMILIES_TUNING = ("huge_dose", "many_medicines", "night_controlled_burst")
@@ -173,15 +174,32 @@ def _normal_medicines(
     if count is None:
         count = int(rng.choice([1, 2, 3, 4, 5], p=[0.28, 0.38, 0.22, 0.09, 0.03]))
     count = min(count, len(doctor.drugs))
-    picked = rng.choice(len(doctor.drugs), size=count, replace=False, p=doctor.weights)
-    names = [doctor.drugs[i] for i in picked]
-    # Real doctors now and then prescribe outside their usual list (a referral, an unusual case).
-    # Without this, "new drug for this doctor" would be constant in the training data and the
-    # forest could not learn from it at all.
-    for slot in range(len(names)):
-        if count and rng.random() < OFF_LIST_RATE:
-            names[slot] = str(rng.choice(_everyday_drugs(catalog)))
+    for _attempt in range(10):
+        picked = rng.choice(len(doctor.drugs), size=count, replace=False, p=doctor.weights)
+        names = [doctor.drugs[i] for i in picked]
+        # Real doctors now and then prescribe outside their usual list (a referral, an unusual
+        # case). Without this, "new drug for this doctor" would be constant in the training data
+        # and the forest could not learn from it at all.
+        for slot in range(len(names)):
+            if count and rng.random() < OFF_LIST_RATE:
+                names[slot] = str(rng.choice(_everyday_drugs(catalog)))
+        worst = _worst_interaction(names, catalog)
+        # A normal prescriber does not write a known dangerous pair, and only rarely a moderate
+        # one (it happens, knowingly). Without this, 15% of "normal" rows carried an interaction.
+        if worst is None or (worst == "MODERATE" and rng.random() < MODERATE_PAIR_RATE):
+            break
+    else:
+        names = names[:1]  # a normal prescriber does not write a known dangerous pair
     return [_make_medicine(rng, name, doctor.specialty, catalog) for name in names]
+
+
+def _worst_interaction(names: list[str], catalog: drug_match.Catalog) -> str | None:
+    """MAJOR, MODERATE or None for the medicines a doctor is about to write."""
+    known = [(i, g) for i, g in enumerate(generic_of(n, catalog) for n in names) if g]
+    found = interactions.find_interactions(known)
+    if not found:
+        return None
+    return "MAJOR" if any(x.severity == "MAJOR" for x in found) else "MODERATE"
 
 
 def _everyday_drugs(catalog: drug_match.Catalog) -> list[str]:

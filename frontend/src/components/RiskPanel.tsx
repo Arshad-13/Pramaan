@@ -55,6 +55,36 @@ export function RiskPanel({
             <CheckCircle2 className="size-4" aria-hidden="true" /> No unusual drug names or doses found.
           </p>
         )}
+        {check.risk.breakdown && check.risk.breakdown.length > 0 && (
+          <details className="mt-4 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm">
+            <summary className="cursor-pointer font-medium">How the score adds up</summary>
+            <table className="mt-2 w-full text-left">
+              <caption className="sr-only">Contributions to the risk score</caption>
+              <thead className="sr-only">
+                <tr>
+                  <th scope="col">Reason</th>
+                  <th scope="col">Points</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {check.risk.breakdown.map((item) => (
+                  <tr key={item.code}>
+                    <td className="py-1.5 pr-3">{item.label}</td>
+                    <td className="py-1.5 text-right tabular-nums">{item.points > 0 ? `+${item.points}` : item.points}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-border-strong font-medium">
+                  <th scope="row" className="py-1.5 pr-3 text-left font-medium">
+                    Total (review needed from {check.threshold})
+                  </th>
+                  <td className="py-1.5 text-right tabular-nums">{check.risk.score}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </details>
+        )}
         {check.warnings
           .filter((w) => WARNING_TEXT[w])
           .map((w) => (

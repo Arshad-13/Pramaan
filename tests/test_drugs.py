@@ -207,10 +207,9 @@ def test_an_absurd_dose_crosses_the_threshold_with_clear_explanations():
 
 def test_controlled_substances_add_ten_each_capped_at_twenty():
     assert assess([med("Tramadol", 50, "BD")]).score == 10
-    assert assess([med("Tramadol", 50, "BD"), med("Alprazolam", 1, "OD")]).score == 20
-    three = assess(
-        [med("Tramadol", 50, "BD"), med("Alprazolam", 1, "OD"), med("Diazepam", 5, "OD")]
-    )
+    # Opioids together have no interaction rule, so only the controlled-substance points show.
+    assert assess([med("Tramadol", 50, "BD"), med("Codeine", 30, "BD")]).score == 20
+    three = assess([med("Tramadol", 50, "BD"), med("Codeine", 30, "BD"), med("Morphine", 10, "OD")])
     assert three.score == 20 and three.controlled is True
 
 

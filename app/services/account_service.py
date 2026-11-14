@@ -23,7 +23,7 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -124,8 +124,28 @@ def _fail(db: Session, user: User | None, reason: str) -> AuthFailed:
     return AuthFailed()
 
 
-def authenticate(db: Session, email: str, password: str, ip: str | None = None) -> User:
+def register_failed_attempt(db: Session, user: User, ip: str | None) -> None:
+    """Count a wrong password or wrong second-step code; lock the account after too many.
+    Both steps share one counter, so guessing codes cannot be done more cheaply than passwords."""
     settings = get_settings()
+    user.failed_logins += 1
+    if user.failed_logins >= settings.max_failed_logins:
+        user.locked_until = clock.now_utc() + timedelta(minutes=settings.lockout_minutes)
+        audit.append(
+            db, user.id, user.role.value, "ACCOUNT_LOCKED", user.public_id,
+            {"minutes": settings.lockout_minutes},
+        )  # fmt: skip
+        events.record_event(
+            db,
+            event_type="FAILED_LOGINS",
+            severity=Severity.MEDIUM,
+            user_id=user.id,
+            ip=ip,
+            details={"failures": user.failed_logins, "locked_minutes": settings.lockout_minutes},
+        )
+
+
+def authenticate(db: Session, email: str, password: str, ip: str | None = None) -> User:
     now = clock.now_utc()
     user = db.scalar(select(User).where(User.email == email))
 
@@ -145,28 +165,14 @@ def authenticate(db: Session, email: str, password: str, ip: str | None = None) 
         raise _fail(db, user, "NOT_ACTIVATED")
 
     if not verify_password(user.password_hash, password):
-        user.failed_logins += 1
-        if user.failed_logins >= settings.max_failed_logins:
-            user.locked_until = now + timedelta(minutes=settings.lockout_minutes)
-            audit.append(
-                db, user.id, user.role.value, "ACCOUNT_LOCKED", user.public_id,
-                {"minutes": settings.lockout_minutes},
-            )  # fmt: skip
-            events.record_event(
-                db,
-                event_type="FAILED_LOGINS",
-                severity=Severity.MEDIUM,
-                user_id=user.id,
-                ip=ip,
-                details={
-                    "failures": user.failed_logins,
-                    "locked_minutes": settings.lockout_minutes,
-                },
-            )
+        register_failed_attempt(db, user, ip)
         raise _fail(db, user, "BAD_PASSWORD")
 
-    user.failed_logins = 0
-    user.locked_until = None
+    if not user.totp_enabled:
+        # With a second step the counter is reset only once that step succeeds; otherwise someone
+        # who knows the password could guess codes for ever by re-entering it between guesses.
+        user.failed_logins = 0
+        user.locked_until = None
     if not user.is_active:
         audit.append(
             db, user.id, user.role.value, "LOGIN_FAIL", user.public_id, {"reason": "DISABLED"}
@@ -185,6 +191,9 @@ def authenticate(db: Session, email: str, password: str, ip: str | None = None) 
         )
         raise AccountNotUsable(message)
 
+    if user.totp_enabled:
+        db.commit()  # the sign-in is not complete: the caller asks for the second step
+        return user
     audit.append(db, user.id, user.role.value, "LOGIN_SUCCESS", user.public_id, {})
     db.commit()
     return user
@@ -331,10 +340,16 @@ def list_users(
     *,
     role: str | None = None,
     approval_status: str | None = None,
+    q: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[User], int]:
     query = select(User)
+    if q:
+        # Substring match on name or email; `autoescape` makes % and _ ordinary characters.
+        query = query.where(
+            or_(User.name.icontains(q, autoescape=True), User.email.icontains(q, autoescape=True))
+        )
     if role:
         query = query.where(User.role == Role(role))
     if approval_status:

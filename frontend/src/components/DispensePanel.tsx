@@ -5,6 +5,7 @@ import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api, ApiError } from '@/lib/api'
+import { useT } from '@/lib/i18n'
 import type { DispenseResult, VerifyResult } from '@/lib/types'
 
 /** Hand over the medicine: needs the patient's PIN (or, for PIN-less prescriptions, a confirmation
@@ -20,6 +21,7 @@ export function DispensePanel({
   onDone?: (r: DispenseResult) => void
   onReset: () => void
 }) {
+  const t = useT()
   const [pin, setPin] = useState('')
   const [identity, setIdentity] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -41,7 +43,7 @@ export function DispensePanel({
     },
     onError: (e) => {
       setPin('')
-      setError(e instanceof ApiError ? e.message : 'Something went wrong. Try again.')
+      setError(e instanceof ApiError ? e.message : t('common.generic'))
     },
   })
 
@@ -55,15 +57,15 @@ export function DispensePanel({
     return (
       <div role="status" className="rounded-lg border border-verified-border bg-verified-soft p-5">
         <p className="flex items-center gap-2 font-medium text-verified">
-          <CheckCircle2 className="size-5" aria-hidden="true" /> Dispensed (fill {done.fill_no})
+          <CheckCircle2 className="size-5" aria-hidden="true" /> {t('dispense.done', { n: done.fill_no })}
         </p>
         <p className="mt-1 text-sm text-foreground">
           {done.fills_remaining > 0
-            ? `${done.fills_remaining} more ${done.fills_remaining === 1 ? 'fill' : 'fills'} remain on this prescription.`
-            : 'This prescription is now fully used.'}
+            ? t(done.fills_remaining === 1 ? 'dispense.moreOne' : 'dispense.moreMany', { n: done.fills_remaining })
+            : t('dispense.fullyUsed')}
         </p>
         <Button className="mt-4" variant="outline" onClick={onReset}>
-          Verify another
+          {t('verify.another')}
         </Button>
       </div>
     )
@@ -72,11 +74,11 @@ export function DispensePanel({
   const ready = result.pin_required ? /^\d{6}$/.test(pin.trim()) : identity
   return (
     <form onSubmit={submit} className="rounded-lg border border-border bg-surface p-5" noValidate>
-      <h3 className="text-sm font-semibold">Dispense</h3>
+      <h3 className="text-sm font-semibold">{t('dispense.title')}</h3>
       {result.pin_required ? (
         <div className="mt-3 max-w-xs">
           <label htmlFor="patient-pin" className="text-sm font-medium">
-            Patient&apos;s PIN
+            {t('dispense.pin')}
           </label>
           <Input
             id="patient-pin"
@@ -89,13 +91,13 @@ export function DispensePanel({
             aria-describedby="pin-hint"
           />
           <p id="pin-hint" className="mt-1.5 text-xs text-muted-foreground">
-            The patient shows this six-digit code in their Pramaan account. It changes every two minutes.
+            {t('dispense.pinHint')}
           </p>
         </div>
       ) : (
         <label className="mt-3 flex items-start gap-2.5 text-sm">
           <input type="checkbox" className="mt-0.5 size-4" checked={identity} onChange={(e) => setIdentity(e.target.checked)} />
-          <span>I have checked the patient&apos;s identity.</span>
+          <span>{t('dispense.identity')}</span>
         </label>
       )}
       {error && (
@@ -105,7 +107,7 @@ export function DispensePanel({
       )}
       <Button type="submit" size="lg" className="mt-5" disabled={!ready || dispense.isPending} aria-busy={dispense.isPending}>
         {dispense.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <PackageCheck aria-hidden="true" />}
-        Dispense
+        {t('dispense.submit')}
       </Button>
     </form>
   )

@@ -71,6 +71,7 @@ def main() -> int:
     text = _set(text, "SECRET_KEY", secret_key)
     text = _set(text, "MASTER_KEY", master_key)
     text = _set(text, "AUDIT_KEY", audit_key)
+    text = _set(text, "DEMO_MODE", "true")  # this .env is for a local demo; .env.example stays off
     ENV_FILE.write_text(text, encoding="utf-8")
 
     print(f"Wrote {ENV_FILE.relative_to(ROOT)} and {PEM_FILE.relative_to(ROOT)} (git-ignored).")

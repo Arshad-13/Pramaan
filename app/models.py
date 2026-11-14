@@ -116,6 +116,13 @@ class User(Base):
     locked_until: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     token_version: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=now_utc)
+    # Two-factor sign-in (TOTP). The secret is encrypted under the master key; recovery codes are
+    # stored only as SHA-256. `totp_last_step` stops a code being used twice.
+    totp_secret_enc: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    totp_kek_version: Mapped[int] = mapped_column(Integer, default=1)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    totp_last_step: Mapped[int] = mapped_column(Integer, default=0)
+    recovery_codes_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class ActivationToken(Base):
@@ -187,6 +194,9 @@ class Prescription(Base):
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime)
     pdf_path: Mapped[str] = mapped_column(String(255))
     pdf_sha256: Mapped[str] = mapped_column(String(64))
+    # Set when the doctor replaced this prescription with a corrected one (it is then REVOKED).
+    # Only changes the message a pharmacist sees; it never relaxes a check.
+    superseded_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
 
 
 class Dispense(Base):
@@ -212,7 +222,7 @@ class AuditLog(Base):
     actor_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     actor_role: Mapped[str | None] = mapped_column(String(20), nullable=True)
     action: Mapped[str] = mapped_column(String(40), index=True)
-    resource_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    resource_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     details_json: Mapped[str] = mapped_column(Text, default="{}")
     prev_hash: Mapped[str] = mapped_column(String(64))
     entry_hash: Mapped[str] = mapped_column(String(64))
@@ -238,6 +248,11 @@ class SecurityEvent(Base):
     event_type: Mapped[str] = mapped_column(String(48), index=True)
     severity: Mapped[Severity] = mapped_column(_enum(Severity))
     details_json: Mapped[str] = mapped_column(Text, default="{}")
+    # Alert workflow: OPEN -> ACKNOWLEDGED -> RESOLVED. The note is free text for the handler.
+    status: Mapped[str] = mapped_column(String(16), default="OPEN", server_default="OPEN")
+    handled_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    handled_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class VerificationAttempt(Base):

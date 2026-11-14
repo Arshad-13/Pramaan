@@ -85,6 +85,7 @@ _REASON_RESULT = {
     "DOCTOR_KEY_REVOKED": "REVOKED",
     "DOCTOR_SUSPENDED": "REVOKED",
     "RX_REVOKED": "REVOKED",
+    "RX_SUPERSEDED": "REVOKED",
     "FULLY_DISPENSED": "ALREADY_USED",
     "RX_EXPIRED": "EXPIRED",
     "RISK_ABOVE_THRESHOLD": "SUSPICIOUS",
@@ -266,7 +267,7 @@ def evaluate(db: Session, qr_string: str, scanner_id: int | None = None) -> Eval
 
     # 9. status and expiry (expiry from the signed payload)
     if rx.status.value == "REVOKED":
-        reasons.append("RX_REVOKED")
+        reasons.append("RX_SUPERSEDED" if rx.superseded_by else "RX_REVOKED")
     if rx.status.value == "DISPENSED" or rx.fills_used >= rx.max_fills:
         reasons.append("FULLY_DISPENSED")
     expires = _parse_iso_z(payload["expires_at"])
@@ -446,6 +447,42 @@ def recent_activity(db: Session, pharmacist: User) -> dict[str, Any]:
             {"ts": r.ts, "result": r.result, "rx_ref": r.rx_id[:8] if r.rx_id else None}
             for r in rows
         ],
+    }
+
+
+def check_history(
+    db: Session, pharmacist: User, *, result: str | None, limit: int, offset: int
+) -> dict[str, Any]:
+    """The pharmacist's own past checks, newest first (never anyone else's)."""
+    query = select(VerificationAttempt).where(VerificationAttempt.pharmacist_id == pharmacist.id)
+    if result:
+        query = query.where(VerificationAttempt.result == result)
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    rows = db.scalars(
+        query.order_by(VerificationAttempt.id.desc()).limit(limit).offset(offset)
+    ).all()
+    return {
+        "total": total,
+        "items": [
+            {
+                "ts": r.ts,
+                "result": r.result,
+                "rx_ref": r.rx_id[:8] if r.rx_id else None,
+                "reasons": json.loads(r.reason_codes or "[]"),
+            }
+            for r in rows
+        ],
+    }
+
+
+def dispense_history(db: Session, pharmacist: User, *, limit: int, offset: int) -> dict[str, Any]:
+    """Medicines this pharmacist handed over, newest first."""
+    query = select(Dispense).where(Dispense.pharmacist_id == pharmacist.id)
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    rows = db.scalars(query.order_by(Dispense.id.desc()).limit(limit).offset(offset)).all()
+    return {
+        "total": total,
+        "items": [{"ts": r.ts, "rx_ref": r.rx_id[:8], "fill_no": r.fill_no} for r in rows],
     }
 
 

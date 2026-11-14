@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.core import audit, crypto
 from app.core.canonical import sha256_hex
-from app.models import Prescription
+from app.models import Prescription, User
 
 
 class RotationError(Exception):
@@ -66,6 +66,26 @@ def rotate(
                 f"(version {row.kek_version}). Nothing was changed."
             ) from exc
 
+    rewrapped_totp = 0
+    for user in db.scalars(select(User).where(User.totp_secret_enc.is_not(None))):
+        try:
+            user.totp_secret_enc = crypto.rewrap_key(
+                old_kek,
+                new_kek,
+                user.totp_secret_enc,
+                rx_id=user.public_id,
+                old_version=user.totp_kek_version,
+                new_version=new_version,
+                purpose=b"totp",
+            ).wrapped
+        except crypto.DecryptionError as exc:
+            raise RotationError(
+                f"The two-factor secret of {user.public_id} could not be unwrapped with the "
+                "current key. Nothing was changed."
+            ) from exc
+        user.totp_kek_version = new_version
+        rewrapped_totp += 1
+
     _prove_readable(rows, new_kek)
     audit.append(
         db,
@@ -73,7 +93,12 @@ def rotate(
         None,
         "KEK_ROTATED",
         None,
-        {"from_version": old_version, "to_version": new_version, "prescriptions": len(rows)},
+        {
+            "from_version": old_version,
+            "to_version": new_version,
+            "prescriptions": len(rows),
+            "second_factor_keys": rewrapped_totp,
+        },
     )
     return len(rows)
 

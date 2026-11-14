@@ -61,7 +61,13 @@ def rx_count():
 
 def test_a_normal_prescription_needs_no_confirmation(w):
     out = risk_check(w, [med()]).json()
-    assert out["risk"] == {"score": 0, "flags": [], "explanations": []}
+    assert out["risk"] == {
+        "score": 0,
+        "flags": [],
+        "explanations": [],
+        "breakdown": [],
+        "interactions": [],
+    }
     assert out["requires_override"] is False and out["threshold"] == 60
     assert out["medicines"][0]["status"] == "KNOWN" and out["warnings"] == ["MODEL_UNAVAILABLE"]
 

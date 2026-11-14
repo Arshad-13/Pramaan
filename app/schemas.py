@@ -86,7 +86,7 @@ class CreateDoctorIn(Strict):
 
 
 class UserOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     public_id: str
     email: str
@@ -98,6 +98,18 @@ class UserOut(BaseModel):
     approval_status: ApprovalStatus
     is_active: bool
     created_at: datetime
+    mfa_enabled: bool = Field(False, validation_alias="totp_enabled")
+
+
+class MeOut(UserOut):
+    """The signed-in person plus how long this session has left (drives the renewal prompt)."""
+
+    session_expires_at: datetime
+    session_ends_by: datetime  # the hard cap: renewing cannot go past this
+
+
+class PublicConfigOut(BaseModel):
+    demo_mode: bool
 
 
 class TokenOut(BaseModel):
@@ -105,6 +117,41 @@ class TokenOut(BaseModel):
     token_type: Literal["bearer"] = "bearer"  # noqa: S105 - OAuth token type, not a secret
     role: Role
     name: str
+
+
+class MfaRequiredOut(BaseModel):
+    """The password was right but a second step is needed. `mfa_token` is not a session."""
+
+    mfa_required: Literal[True] = True
+    mfa_token: str
+
+
+class MfaLoginIn(Strict):
+    mfa_token: Annotated[str, Field(min_length=20, max_length=1024)]
+    code: Annotated[str, Field(min_length=6, max_length=24)]
+
+
+class MfaEnrolIn(Strict):
+    password: Password
+
+
+class MfaEnrolOut(BaseModel):
+    secret: str  # base32, for typing into an authenticator app by hand
+    otpauth_uri: str
+    qr_matrix: list[list[bool]]  # the same link as a QR code, drawn by the page
+
+
+class MfaCodeIn(Strict):
+    code: Annotated[str, Field(min_length=6, max_length=24)]
+
+
+class MfaEnableOut(BaseModel):
+    recovery_codes: list[str]  # shown once
+
+
+class MfaDisableIn(Strict):
+    password: Password
+    code: Annotated[str, Field(min_length=6, max_length=24)]
 
 
 class ActivationOut(BaseModel):
@@ -135,6 +182,7 @@ class AuditEntryOut(BaseModel):
 class AuditPageOut(BaseModel):
     items: list[AuditEntryOut]
     total: int
+    actions: list[str] = []  # every action name, for the filter menu
 
 
 class SecurityEventOut(BaseModel):
@@ -147,6 +195,21 @@ class SecurityEventOut(BaseModel):
     event_type: str
     severity: str
     details_json: str
+    status: str = "OPEN"
+    handled_at: datetime | None = None
+    note: str | None = None
+
+
+class SecurityEventUpdateIn(Strict):
+    status: Literal["OPEN", "ACKNOWLEDGED", "RESOLVED"]
+    note: Annotated[str, Field(max_length=300), AfterValidator(_clean_text)] | None = None
+
+
+class ModelStatusOut(BaseModel):
+    status: str  # OK, MISSING, UNSIGNED, BAD_SIGNATURE or CORRUPT
+    file_modified_at: datetime | None = None
+    features: list[str] = []
+    weight_points: int = 0  # the most the model can add to a risk score
 
 
 class AuditVerifyOut(BaseModel):
@@ -191,12 +254,31 @@ class IssueIn(Strict):
     signing_password: Password
     override_reason: Annotated[str, Field(max_length=300)] | None = None
     require_pin: bool = True
+    # A correction: the id of this doctor's earlier, unused prescription that this one replaces.
+    supersedes: Annotated[str, Field(min_length=1, max_length=36)] | None = None
+
+
+class BreakdownItemOut(BaseModel):
+    """One contribution to a risk score. The items add up to the score."""
+
+    code: str
+    label: str
+    points: int
+
+
+class InteractionOut(BaseModel):
+    first: str
+    second: str
+    severity: str  # MAJOR or MODERATE
+    note: str
 
 
 class RiskOut(BaseModel):
     score: int
     flags: list[str]
     explanations: list[str]
+    breakdown: list[BreakdownItemOut] = []  # the doctor's view; empty for a pharmacist's check
+    interactions: list[InteractionOut] = []
 
 
 class IssueOut(BaseModel):
@@ -215,6 +297,14 @@ class MedicineOut(BaseModel):
     dose_mg: int
     frequency: str
     duration_days: int
+
+
+class FillOut(BaseModel):
+    """One time a prescription was handed over."""
+
+    fill_no: int
+    ts: datetime
+    pharmacy: str | None = None
 
 
 class PrescriptionOut(BaseModel):
@@ -236,6 +326,9 @@ class PrescriptionOut(BaseModel):
     flagged: bool = False  # issuing doctor only: the score reached the review threshold
     require_pin: bool = True
     readable: bool = True  # False if the stored record failed its integrity check
+    patient_id: str | None = None  # public id; the issuing doctor only (to repeat or correct)
+    superseded_by: str | None = None  # id of the corrected prescription that replaced this one
+    fills: list[FillOut] = []
 
 
 class KeyOut(BaseModel):
@@ -337,6 +430,29 @@ class RecentActivityOut(BaseModel):
     flagged_today: int
     dispensed_today: int
     recent: list[RecentVerificationOut]
+
+
+class HistoryItemOut(BaseModel):
+    ts: datetime
+    result: str
+    rx_ref: str | None = None
+    reasons: list[str] = []
+
+
+class HistoryOut(BaseModel):
+    items: list[HistoryItemOut]
+    total: int
+
+
+class DispenseItemOut(BaseModel):
+    ts: datetime
+    rx_ref: str
+    fill_no: int
+
+
+class DispenseHistoryOut(BaseModel):
+    items: list[DispenseItemOut]
+    total: int
 
 
 class DispenseIn(Strict):

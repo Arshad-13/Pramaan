@@ -121,14 +121,74 @@ describe('auth flow', () => {
     })
   })
 
-  it('fills the sign-in form from a demo account with one click', async () => {
-    fetchMock.mockResolvedValue(json(401, { detail: 'no' }))
+  it('fills the sign-in form from a demo account with one click when the server is in demo mode', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      url === '/api/public-config' ? json(200, { demo_mode: true }) : json(401, { detail: 'no' }),
+    )
     renderAt('/login', <Routes><Route path="/login" element={<Login />} /></Routes>)
     await userEvent.click(await screen.findByRole('button', { name: /Dr\. Shah/ }))
     expect(screen.getByLabelText('Email')).toHaveValue('dr.shah@clinic.test')
     expect(screen.getByLabelText('Password')).toHaveValue('Doctor-Login-2026')
     await userEvent.click(screen.getByRole('button', { name: /Administrator/ }))
     expect(screen.getByLabelText('Email')).toHaveValue('admin@pramaan.test')
+  })
+
+  it('shows no demo accounts unless the server says it is in demo mode', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      url === '/api/public-config' ? json(200, { demo_mode: false }) : json(401, { detail: 'no' }),
+    )
+    renderAt('/login', <Routes><Route path="/login" element={<Login />} /></Routes>)
+    await screen.findByLabelText('Email')
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/public-config', expect.anything()))
+    expect(screen.queryByText('Demo accounts')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Dr\. Shah/ })).not.toBeInTheDocument()
+  })
+
+  it('asks for the second step when the account has two-factor sign-in, then lands on the home page', async () => {
+    let signedIn = false
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === '/api/auth/login') return json(200, { mfa_required: true, mfa_token: 'step-token-step-token-1' })
+      if (url === '/api/auth/login/mfa') {
+        const body = JSON.parse(String(init?.body))
+        if (body.code !== '123456') return json(401, { detail: 'That code is not right.' })
+        signedIn = true
+        return json(200, { access_token: 'x', role: 'patient', name: 'Ravi Patel' })
+      }
+      if (url === '/api/auth/me') return signedIn ? json(200, PATIENT) : json(401, { detail: 'no' })
+      return json(404, {})
+    })
+    renderAt(
+      '/login',
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/" element={<h1>Home page</h1>} />
+      </Routes>,
+    )
+    await userEvent.type(await screen.findByLabelText('Email'), 'ravi@example.test')
+    await userEvent.type(screen.getByLabelText('Password'), 'correct-horse-battery')
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(await screen.findByRole('heading', { name: /authenticator app/i })).toBeInTheDocument()
+    await userEvent.type(screen.getByLabelText(/^Code/), '000000')
+    await userEvent.click(screen.getByRole('button', { name: /Verify and sign in/ }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('That code is not right.')
+
+    await userEvent.clear(screen.getByLabelText(/^Code/))
+    await userEvent.type(screen.getByLabelText(/^Code/), '123456')
+    await userEvent.click(screen.getByRole('button', { name: /Verify and sign in/ }))
+    expect(await screen.findByText('Home page')).toBeInTheDocument()
+  })
+
+  it('goes back from the second step to the password form', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      url === '/api/auth/login' ? json(200, { mfa_required: true, mfa_token: 'step-token-step-token-1' }) : json(401, { detail: 'no' }),
+    )
+    renderAt('/login', <Routes><Route path="/login" element={<Login />} /></Routes>)
+    await userEvent.type(await screen.findByLabelText('Email'), 'ravi@example.test')
+    await userEvent.type(screen.getByLabelText('Password'), 'correct-horse-battery')
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    await userEvent.click(await screen.findByRole('button', { name: /different account/i }))
+    expect(await screen.findByLabelText('Email')).toBeInTheDocument()
   })
 
   it('offers one demo account for every role', () => {

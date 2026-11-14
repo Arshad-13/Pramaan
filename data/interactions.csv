@@ -1,0 +1,39 @@
+a,b,severity,note
+Warfarin,@nsaid,MAJOR,Bleeding risk rises sharply.
+Warfarin,Aspirin,MAJOR,Bleeding risk rises sharply.
+Warfarin,Clopidogrel,MAJOR,Bleeding risk rises sharply.
+Warfarin,Fluconazole,MAJOR,Raises warfarin levels and bleeding risk.
+Warfarin,Metronidazole,MAJOR,Raises warfarin levels and bleeding risk.
+Warfarin,Clarithromycin,MAJOR,Raises warfarin levels and bleeding risk.
+Warfarin,@fluoroquinolone,MODERATE,Can raise warfarin levels.
+Warfarin,@ssri,MODERATE,Bleeding risk rises.
+@opioid,@benzo,MAJOR,Breathing can slow dangerously.
+@opioid,Zolpidem,MAJOR,Breathing can slow dangerously.
+@opioid,@gabapentinoid,MODERATE,Drowsiness and slowed breathing.
+Tramadol,@ssri,MAJOR,Risk of serotonin syndrome and seizures.
+Tramadol,Amitriptyline,MAJOR,Risk of serotonin syndrome and seizures.
+@benzo,Zolpidem,MAJOR,Heavy sedation; avoid together.
+@benzo,@benzo,MAJOR,Two medicines of the same kind; heavy sedation.
+@benzo,@gabapentinoid,MODERATE,Drowsiness and slowed breathing.
+@benzo,Fluconazole,MODERATE,Raises the sedative's level.
+@ssri,@ssri,MAJOR,Two medicines of the same kind; serotonin syndrome.
+@ssri,Amitriptyline,MODERATE,Raises antidepressant levels.
+@ssri,@nsaid,MODERATE,Stomach bleeding risk rises.
+@ssri,Aspirin,MODERATE,Stomach bleeding risk rises.
+@nsaid,@nsaid,MAJOR,Two medicines of the same kind; stomach bleeding and kidney harm.
+@nsaid,@steroid,MODERATE,Stomach bleeding risk rises.
+@nsaid,@acei_arb,MODERATE,Kidney strain and weaker blood-pressure control.
+@nsaid,Aspirin,MODERATE,Stomach bleeding risk rises.
+@nsaid,Furosemide,MODERATE,Weaker diuretic effect and kidney strain.
+@acei_arb,@acei_arb,MAJOR,Two medicines of the same kind; kidney harm and high potassium.
+@qt,@qt,MODERATE,Both can prolong the QT interval (heart rhythm).
+@sulfonylurea,Fluconazole,MODERATE,Low blood sugar risk.
+@sulfonylurea,@fluoroquinolone,MODERATE,Low blood sugar risk.
+@fluoroquinolone,@steroid,MODERATE,Tendon injury risk rises.
+@betablocker,Salbutamol,MODERATE,The two work against each other.
+@betablocker,@betablocker,MODERATE,Two medicines of the same kind; slow heart rate.
+Clopidogrel,Omeprazole,MODERATE,Omeprazole can weaken clopidogrel.
+Clopidogrel,Esomeprazole,MODERATE,Esomeprazole can weaken clopidogrel.
+Clopidogrel,Aspirin,MODERATE,Bleeding risk; sometimes intended.
+@statin,Clarithromycin,MODERATE,Muscle injury risk rises.
+Atorvastatin,Fluconazole,MODERATE,Muscle injury risk rises.

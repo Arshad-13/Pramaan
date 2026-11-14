@@ -59,12 +59,12 @@ function json(status: number, body?: unknown) {
   return new Response(body === undefined ? null : JSON.stringify(body), { status })
 }
 
-function renderPage(element: React.ReactNode) {
+function renderPage(element: React.ReactNode, entry = '/p') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
       <AuthProvider>
-        <MemoryRouter initialEntries={['/p']}>
+        <MemoryRouter initialEntries={[entry]}>
           <Routes>
             <Route path="/p" element={element} />
             <Route path="/prescriptions" element={<h1>List page</h1>} />
@@ -256,6 +256,33 @@ describe('NewPrescription', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('too long to print')
   })
 
+  it('correcting loads the earlier prescription and asks to replace it when signing', async () => {
+    const original = { ...RX, patient_id: 'p1' }
+    let signed = false
+    route({
+      // After signing, the original reads as withdrawn (the list is refetched): the page must still say so.
+      '/api/prescriptions/mine': () => json(200, [signed ? { ...original, status: 'REVOKED' } : original]),
+      '/api/prescriptions': () => {
+        signed = true
+        return json(201, {
+          rx_id: 'rx-9', issued_at: '2026-10-18T10:30:00Z', expires_at: '2026-11-17T10:30:00Z',
+          max_fills: 1, key_id: 'k', fingerprint: '9a1c 0e77 b2d4',
+          risk: { score: 0, flags: [], explanations: [] }, warnings: [],
+        })
+      },
+    })
+    renderPage(<NewPrescription />, '/p?correct=rx-1')
+    expect(await screen.findByText(/withdraws the original/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Correct a prescription' })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByLabelText('Medicine')).toHaveValue('Amoxicillin'))
+    await userEvent.type(screen.getByLabelText('Signing password'), 'a-long-signing-phrase')
+    await userEvent.click(screen.getByRole('button', { name: 'Sign and issue' }))
+    expect(await screen.findByText('Signed and stored securely')).toBeInTheDocument()
+    expect(await screen.findByText(/earlier prescription was withdrawn/)).toBeInTheDocument()
+    const call = fetchMock.mock.calls.find(([u]) => u === '/api/prescriptions')!
+    expect(JSON.parse(call[1].body)).toMatchObject({ patient_id: 'p1', supersedes: 'rx-1' })
+  })
+
   it('adds and removes medicine rows up to the limit', async () => {
     route()
     renderPage(<NewPrescription />)
@@ -284,9 +311,38 @@ describe('MyPrescriptions', () => {
     expect(await screen.findByText('Ravi Patel')).toBeInTheDocument()
     expect(screen.getByText('Sneha Rao')).toBeInTheDocument()
     expect(screen.getAllByText('Amoxicillin 500 mg TDS, 5 days').length).toBe(2)
-    expect(screen.getAllByText('Issued')).toHaveLength(2) // column heading + status badge
-    expect(screen.getByText('Revoked')).toBeInTheDocument()
+    const filters = within(screen.getByRole('group', { name: 'Filter by status' }))
+    expect(filters.getByRole('button', { name: /^All/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(filters.getByRole('button', { name: /^Revoked/ })).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: /PDF/ })[0]).toHaveAttribute('href', '/api/prescriptions/rx-1/pdf')
+  })
+
+  it('filters by status and by search text', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      url === '/api/auth/me' ? json(200, DOCTOR) : json(200, [RX, { ...RX, id: 'rx-2', status: 'REVOKED', patient_name: 'Sneha Rao' }]),
+    )
+    renderPage(<MyPrescriptions />)
+    await screen.findByText('Ravi Patel')
+    const filters = within(screen.getByRole('group', { name: 'Filter by status' }))
+    await userEvent.click(filters.getByRole('button', { name: /^Revoked/ }))
+    expect(screen.queryByText('Ravi Patel')).not.toBeInTheDocument()
+    expect(screen.getByText('Sneha Rao')).toBeInTheDocument()
+    await userEvent.click(filters.getByRole('button', { name: /^All/ }))
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search prescriptions' }), 'ravi')
+    expect(await screen.findByText('Ravi Patel')).toBeInTheDocument()
+    expect(screen.queryByText('Sneha Rao')).not.toBeInTheDocument()
+  })
+
+  it('doctors get Repeat and Correct links; Correct only while issued', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      url === '/api/auth/me' ? json(200, DOCTOR) : json(200, [{ ...RX, patient_id: 'p1' }, { ...RX, patient_id: 'p1', id: 'rx-2', status: 'DISPENSED' }]),
+    )
+    renderPage(<MyPrescriptions />)
+    await screen.findAllByText('Ravi Patel')
+    expect(screen.getAllByRole('link', { name: /Repeat/ })).toHaveLength(2)
+    const correct = screen.getAllByRole('link', { name: /Correct/ })
+    expect(correct).toHaveLength(1)
+    expect(correct[0]).toHaveAttribute('href', '/prescriptions/new?correct=rx-1')
   })
 
   it('revokes only after a second confirming click, and only unused prescriptions', async () => {

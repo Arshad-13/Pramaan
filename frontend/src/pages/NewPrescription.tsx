@@ -1,9 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, FileDown, KeyRound, Loader2, Plus, Trash2 } from 'lucide-react'
+import { CheckCircle2, FileDown, FilePenLine, KeyRound, Loader2, Plus, Trash2, TriangleAlert } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { z } from 'zod'
 
 import { describe } from '@/lib/aria'
@@ -12,14 +12,16 @@ import { PageHeader } from '@/components/PageHeader'
 import { PatientPicker } from '@/components/PatientPicker'
 import { RiskPanel } from '@/components/RiskPanel'
 import { RxPreview } from '@/components/RxPreview'
+import { Stepper } from '@/components/Stepper'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api, ApiError } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import { DEMO_LOGINS_ENABLED, DOCTOR_SIGNING_PASSWORD } from '@/lib/demoAccounts'
+import { DOCTOR_SIGNING_PASSWORD } from '@/lib/demoAccounts'
+import { usePublicConfig } from '@/lib/publicConfig'
 import { useDebouncedValue } from '@/lib/hooks'
 import { MAX_MEDICINES, MAX_NOTES_CHARS, FREQUENCIES } from '@/lib/rx'
-import type { Drug, IssueResult, Medicine, PatientMatch, RiskCheck } from '@/lib/types'
+import type { Drug, IssueResult, Medicine, PatientMatch, Prescription, RiskCheck } from '@/lib/types'
 
 const num = (min: number, max: number, what: string) =>
   z
@@ -63,11 +65,18 @@ const selectClass =
 
 export default function NewPrescription() {
   const { user } = useAuth()
+  const { demo_mode: demoMode } = usePublicConfig()
   const queryClient = useQueryClient()
   const [patient, setPatient] = useState<PatientMatch | null>(null)
   const [patientError, setPatientError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [issued, setIssued] = useState<IssueResult | null>(null)
+  // Remembered at signing: the list refetches afterwards and the original then reads as withdrawn.
+  const [wasCorrection, setWasCorrection] = useState(false)
+  const [params] = useSearchParams()
+  const correctId = params.get('correct')
+  const sourceId = correctId ?? params.get('repeat')
+  const [prefilled, setPrefilled] = useState<string | null>(null)
 
   const {
     register,
@@ -89,6 +98,30 @@ export default function NewPrescription() {
   })
   const { fields, append, remove } = useFieldArray({ control, name: 'medicines' })
   const watched = useWatch({ control })
+
+  // "Repeat" and "Correct" start from an earlier prescription: same patient and medicines, ready to edit.
+  const { data: mine } = useQuery({
+    queryKey: ['prescriptions', 'mine'],
+    queryFn: () => api<Prescription[]>('/prescriptions/mine'),
+    enabled: sourceId !== null,
+  })
+  const source = sourceId ? mine?.find((r) => r.id === sourceId && r.patient_id && r.readable) : undefined
+  useEffect(() => {
+    if (!source || prefilled === source.id) return
+    const days = Math.round((new Date(source.expires_at).getTime() - new Date(source.issued_at).getTime()) / 86_400_000)
+    // Loading an earlier prescription into the form is a one-off sync from fetched data.
+    // oxlint-disable-next-line react/set-state-in-effect
+    setPatient({ public_id: source.patient_id!, name: source.patient_name ?? 'Patient', patient_code: null })
+    reset({
+      medicines: source.medicines.map((m) => ({ ...m })),
+      notes: source.notes,
+      validity_days: Math.min(90, Math.max(1, days || 30)),
+      max_fills: source.max_fills,
+      signing_password: '',
+    })
+    setPrefilled(source.id)
+  }, [source, prefilled, reset])
+  const correcting = Boolean(correctId && source && source.status === 'ISSUED')
 
   const previewMedicines = useMemo<Medicine[]>(
     () =>
@@ -161,9 +194,11 @@ export default function NewPrescription() {
           ...values,
           patient_id: patient.public_id,
           override_reason: needsOverride ? override.trim() : undefined,
+          supersedes: correcting ? source!.id : undefined,
         },
       })
       setValue('signing_password', '') // never keep the password around
+      setWasCorrection(correcting)
       setIssued(result)
       void queryClient.invalidateQueries({ queryKey: ['prescriptions'] })
     } catch (error) {
@@ -202,6 +237,7 @@ export default function NewPrescription() {
               <dd>{new Date(issued.expires_at).toLocaleString()}</dd>
             </div>
           </dl>
+          {wasCorrection && <p className="mt-4 text-sm text-muted-foreground">The earlier prescription was withdrawn. It will no longer verify.</p>}
           <div className="mt-6 flex flex-wrap gap-3">
             <Button asChild>
               <a href={`/api/prescriptions/${issued.rx_id}/pdf`} target="_blank" rel="noopener">
@@ -232,8 +268,32 @@ export default function NewPrescription() {
   return (
     <>
       <PageHeader
-        title="New prescription"
+        title={correcting ? 'Correct a prescription' : 'New prescription'}
         description="Check the preview, then sign. Only what you see here is signed and printed."
+      />
+      {correctId && source && !correcting && (
+        <p role="alert" className="mb-6 max-w-2xl rounded-md border border-warning-border bg-warning-soft px-4 py-3 text-sm text-warning">
+          That prescription has been used, withdrawn or has expired, so it cannot be corrected. You can still start a new one from it.
+        </p>
+      )}
+      {correcting && source && (
+        <p role="note" className="mb-6 flex max-w-2xl items-start gap-2 rounded-md border border-warning-border bg-warning-soft px-4 py-3 text-sm text-warning">
+          <FilePenLine className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <span>
+            You are correcting the prescription issued on {new Date(source.issued_at).toLocaleDateString()}. Signing this one <strong>withdraws the original</strong>, so it stops verifying.
+          </span>
+        </p>
+      )}
+      <Stepper
+        steps={[
+          { target: 'patient-h', label: 'Patient', done: patient !== null },
+          {
+            target: 'meds-h',
+            label: 'Medicines',
+            done: previewMedicines.length > 0 && previewMedicines.every((m) => m.name.trim().length >= 2 && m.dose_mg > 0 && m.duration_days > 0),
+          },
+          { target: 'sign-h', label: 'Review and sign', done: false },
+        ]}
       />
       <div className="grid gap-10 xl:grid-cols-[minmax(0,1fr)_25rem]">
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="max-w-2xl space-y-8">
@@ -338,6 +398,12 @@ export default function NewPrescription() {
                         </Button>
                       </p>
                     )}
+                    {note?.flags.some((flag) => flag.startsWith('DRUG_INTERACTION')) && (
+                      <p className="mt-3 flex items-start gap-2 text-sm text-warning">
+                        <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                        This medicine interacts with another one on the prescription. See the safety check below.
+                      </p>
+                    )}
                     {note?.status === 'UNKNOWN' && (
                       <p className="mt-3 text-sm text-warning">This name is not in the drug list. You can still issue it with a reason.</p>
                     )}
@@ -391,7 +457,7 @@ export default function NewPrescription() {
               <Field id="signing" label="Signing password" error={errors.signing_password?.message}>
                 <Input type="password" autoComplete="off" {...describe('signing', errors.signing_password?.message)} {...register('signing_password')} />
               </Field>
-              {DEMO_LOGINS_ENABLED && (
+              {demoMode && (
                 <button
                   type="button"
                   onClick={() => setValue('signing_password', DOCTOR_SIGNING_PASSWORD, { shouldValidate: true })}

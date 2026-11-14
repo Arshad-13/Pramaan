@@ -15,7 +15,10 @@ What Pramaan computes, with which algorithm and parameters, and why. Written fro
 | Audit chain | HMAC-SHA256 | Keyed with `AUDIT_KEY`; links each entry to the one before |
 | Audit checkpoints and model file | ECDSA P-256 / SHA-256 | Separate domain-separation strings |
 | Login passwords | argon2id | `argon2-cffi` defaults, NFKC-normalised, 10 to 128 characters |
-| Session token | JWT, HS256 | `sub`, `iat`, `exp`, `jti`, `tv`; algorithm allow-list |
+| Session token | JWT, HS256 | `sub`, `iat`, `exp`, `jti`, `tv`, `at`; algorithm allow-list |
+| Second sign-in step | TOTP, RFC 6238 (HMAC-SHA1) | 6 digits, 30 s step, one step either side, a code is never accepted twice |
+| Two-factor secret at rest | AES-256-GCM under the master key | Purpose `totp`, bound to the user's id and KEK version, re-wrapped on rotation |
+| Recovery codes | HMAC-SHA256, keyed outside the database | 8 random codes of 50 bits, shown once, each usable once |
 | CSRF token | HMAC-SHA256 | Over the session's `jti` |
 | Randomness | `os.urandom`, `secrets`, `uuid4` | Never `random` |
 
@@ -104,6 +107,8 @@ A single entry can also be checked on its own (`audit.entry_is_authentic`). Veri
 - **Session token:** a JWT signed with HS256 using `SECRET_KEY`, carrying `sub`, `iat`, `exp` (30 minutes), a random `jti` and `tv` (the user's token version). Decoding passes `algorithms=["HS256"]` explicitly and requires all claims; expiry is checked against the application's own clock so tests can freeze time. The role is **not** in the token: it is read from the database on every request, and a version mismatch (logout, password change, deactivation) rejects the token at once.
 - **Cookies:** the session cookie is `HttpOnly`, `SameSite=Strict`, and `Secure` when `COOKIE_SECURE=true`.
 - **CSRF:** `HMAC-SHA256(SECRET_KEY, "pramaan-csrf:" ‖ jti)`, sent back by the page in `X-CSRF-Token` on every state-changing request made with a cookie. Because it is derived from the session's `jti`, it cannot be planted from another site and needs no server storage. Bearer-token callers (scripts) are not subject to it, since browsers do not attach those automatically. The same secret feeds the JWT and the CSRF tag; the fixed prefix keeps the two uses apart.
+- **Session length:** `iat` is the time of the *original* sign-in, `at` is carried unchanged by every renewal, and no token outlives `at` + `SESSION_MAX_HOURS` (default 8). `POST /api/auth/refresh` mints a new 30-minute token only for a still-valid session and only before that hard cap; the page asks the person first ("Stay signed in"), so renewal is an explicit act, not a sliding window that never ends.
+- **Second step (TOTP):** after a correct password, an account with two-factor sign-in gets `mfa_required` and a 5-minute token with `typ: "mfa"`. That token is rejected everywhere as a session (`decode_access_token` refuses any token that has a `typ`), and is cancelled by logout or a password change (`tv`). The code is checked per RFC 6238 (SHA-1 HMAC because authenticator apps expect it; HMAC use is not affected by SHA-1 collisions), each of the three candidate steps is compared in constant time, and the last accepted step is stored so a code cannot be reused inside its window. Wrong codes share the password lockout counter, and the password step does *not* reset that counter for such accounts, so guessing codes is no cheaper than guessing passwords. The secret (160 bits) is wrapped under the master key with AAD `pramaan:totp:<user id>:<KEK version>` and re-wrapped by `rotate_master_key.py`. Recovery codes are stored as `HMAC-SHA256(SECRET_KEY, code)`: a stolen database does not allow guessing them offline.
 - **Activation tokens:** `secrets.token_urlsafe(24)` (192 bits), stored only as SHA-256, valid 24 hours, single use.
 
 ## 9. Randomness

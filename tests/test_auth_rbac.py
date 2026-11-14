@@ -118,6 +118,9 @@ def test_me_hides_internal_fields(client):
         "approval_status",
         "is_active",
         "created_at",
+        "mfa_enabled",
+        "session_expires_at",
+        "session_ends_by",
     }
 
 
@@ -328,22 +331,32 @@ FAKE_ID = "00000000-0000-0000-0000-000000000000"
 EXPECTED_ACCESS: dict[tuple[str, str], object] = {
     ("GET", "/api/health"): PUBLIC,
     ("GET", "/api/ready"): PUBLIC,
+    ("GET", "/api/public-config"): PUBLIC,
     ("POST", "/api/auth/register"): PUBLIC,
     ("POST", "/api/auth/login"): PUBLIC,
     ("POST", "/api/auth/activate"): PUBLIC,
     ("GET", "/api/auth/me"): ANY,
     ("POST", "/api/auth/logout"): ANY,
+    ("POST", "/api/auth/refresh"): ANY,
+    ("POST", "/api/auth/login/mfa"): PUBLIC,
+    ("POST", "/api/auth/mfa/enrol"): ANY,
+    ("POST", "/api/auth/mfa/enable"): ANY,
+    ("POST", "/api/auth/mfa/disable"): ANY,
     ("POST", "/api/auth/change-password"): ANY,
     ("POST", "/api/admin/users"): {"admin"},
     ("GET", "/api/admin/users"): {"admin"},
     ("POST", "/api/admin/users/{user_id}/approve"): {"admin"},
     ("POST", "/api/admin/users/{user_id}/reject"): {"admin"},
     ("POST", "/api/admin/users/{user_id}/reissue-token"): {"admin"},
+    ("POST", "/api/admin/users/{user_id}/reset-mfa"): {"admin"},
     ("PATCH", "/api/admin/users/{user_id}/deactivate"): {"admin"},
     ("GET", "/api/admin/audit"): {"auditor"},
     ("GET", "/api/admin/audit/verify"): {"auditor"},
+    ("GET", "/api/admin/audit/export"): {"auditor"},
     ("POST", "/api/admin/audit/checkpoint"): {"auditor"},
     ("GET", "/api/admin/security-events"): {"admin", "auditor"},
+    ("PATCH", "/api/admin/security-events/{event_id}"): {"admin"},
+    ("GET", "/api/admin/model-status"): {"admin", "auditor"},
     ("POST", "/api/prescriptions"): {"doctor"},
     ("GET", "/api/prescriptions/mine"): {"doctor", "patient"},
     ("GET", "/api/prescriptions/{rx_id}/pdf"): {"doctor", "patient"},
@@ -356,6 +369,8 @@ EXPECTED_ACCESS: dict[tuple[str, str], object] = {
     ("POST", "/api/verify/qr"): {"pharmacist"},
     ("POST", "/api/verify/upload"): {"pharmacist"},
     ("GET", "/api/verify/recent"): {"pharmacist"},
+    ("GET", "/api/verify/history"): {"pharmacist"},
+    ("GET", "/api/verify/dispenses"): {"pharmacist"},
     ("POST", "/api/prescriptions/{rx_id}/dispense"): {"pharmacist"},
     ("GET", "/api/prescriptions/{rx_id}/pin"): {"patient"},
 }
@@ -406,7 +421,11 @@ def _headers(client: TestClient, role: str | None, path: str, cache: dict) -> di
 def test_role_endpoint_matrix(matrix_env, role, method, path, _cache={}):  # noqa: B006
     matrix_env.cookies.clear()  # logins above set cookies; "anonymous" must really be anonymous
     allowed = EXPECTED_ACCESS[(method, path)]
-    url = path.replace("{user_id}", FAKE_ID).replace("{rx_id}", FAKE_ID)
+    url = (
+        path.replace("{user_id}", FAKE_ID)
+        .replace("{rx_id}", FAKE_ID)
+        .replace("{event_id}", "999999")
+    )
     headers = _headers(matrix_env, role, path, _cache)
     response = matrix_env.request(
         method, url, headers=headers, json={} if method != "GET" else None

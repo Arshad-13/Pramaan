@@ -37,7 +37,7 @@ The app **refuses to start** if `.env` is missing or contains placeholder or mal
 
 ## Demo accounts and the demo script
 
-`seed_demo.py` prints these (all local demo passwords). Doctors' signing password: `Doctor-Signing-Phrase-9`.
+`seed_demo.py` prints these (all local demo passwords). Doctors' signing password: `Doctor-Signing-Phrase-9`. The sign-in page lists these accounts only when `DEMO_MODE=true` is set in `.env` (off by default, so a real deployment never advertises them).
 
 | Role | Email | Password |
 |---|---|---|
@@ -56,11 +56,15 @@ Sample files are in `samples/demo/` (`ready.pdf`, forged variants, one `.qr.txt`
 5. **Other states:** paste `expired`, `revoked`, `suspicious`, `used` and `controlled` codes.
 6. **Audit log:** as the auditor, *Verify chain*. To show detection, run `python scripts/tamper_audit_demo.py --mode edit` (works on a copy).
 7. **Encryption and key rotation:** `storage/*.pdf.enc` is ciphertext; stop the API, back up, run `python scripts/rotate_master_key.py`, start it again: PDFs still download.
-8. **Attack suite:** `python scripts/attack_suite.py` prints what stopped each of 16 attacks ([results](docs/attack_suite.md)). Run it right after a fresh `seed_demo.py --reset`: it issues prescriptions as Dr. Shah, and after many runs the doctor-burst rule (correctly) asks for an override reason, which stops attacks 6 to 10 from running.
+8. **Corrected prescription:** as a doctor, open *My prescriptions* -> *Correct* on an unused one, change the dose and sign. The original now verifies as Revoked with "replaced by a corrected one". *Repeat* starts a new prescription from an old one.
+9. **Two-factor sign-in:** *Account* -> *Two-factor sign-in* -> *Set up*, scan the code with any authenticator app, keep the recovery codes. Signing in then asks for a code. An administrator can reset it for someone who lost their phone.
+10. **Alert workflow and audit export:** as the administrator, acknowledge and resolve an alert with a note; as the auditor, filter the log and *Export CSV* (the export is itself logged).
+11. **Languages:** the selector on every page switches the main flows to Hindi or Gujarati (short interface strings; a native-speaker review is advised before real use).
+12. **Attack suite:** `python scripts/attack_suite.py` prints what stopped each of 19 attacks (the 16 of the specification, plus corrections, two-factor and alert roles) ([results](docs/attack_suite.md)). Run it right after a fresh `seed_demo.py --reset`: it issues prescriptions as Dr. Shah, and after many runs the doctor-burst rule (correctly) asks for an override reason, which stops attacks 6 to 10 from running.
 
 ## Documents
 
-[`docs/architecture.md`](docs/architecture.md) (diagrams), [`docs/crypto_spec.md`](docs/crypto_spec.md) (algorithms and parameters), [`docs/threat_model.md`](docs/threat_model.md), [`docs/security_review.md`](docs/security_review.md) (code review findings), [`docs/assumptions.md`](docs/assumptions.md), [`docs/evaluation.md`](docs/evaluation.md) (upload checking and anomaly model, with honest caveats), [`docs/attack_suite.md`](docs/attack_suite.md). Screenshots from the browser test are in `docs/screenshots/`.
+[`docs/architecture.md`](docs/architecture.md) (diagrams), [`docs/crypto_spec.md`](docs/crypto_spec.md) (algorithms and parameters), [`docs/threat_model.md`](docs/threat_model.md), [`docs/security_review.md`](docs/security_review.md) (code review findings), [`docs/assumptions.md`](docs/assumptions.md), [`docs/evaluation.md`](docs/evaluation.md) (upload checking and anomaly model, with honest caveats), [`docs/attack_suite.md`](docs/attack_suite.md), [`docs/performance.md`](docs/performance.md) (`python scripts/bench.py`). Screenshots from the browser test are in `docs/screenshots/`.
 
 ## Checks
 
@@ -68,6 +72,7 @@ Sample files are in `samples/demo/` (`ready.pdf`, forged variants, one `.qr.txt`
 .\.venv\Scripts\python.exe -m pytest --cov=app    # backend tests
 .\.venv\Scripts\python.exe -m ruff check .; .\.venv\Scripts\python.exe -m black --check .
 .\.venv\Scripts\python.exe -m bandit -q -r app scripts -ll
+.\.venv\Scripts\python.exe scripts\bench.py                    # latency of the main operations (throw-away database)
 cd frontend; npm test; npm run build; npm run lint
 .\scripts\check.ps1 -Full                        # everything CI runs, in one go
 cd frontend; npm run build; npm run e2e         # real-browser demo script + accessibility check (own seeded database on :8002)
@@ -80,6 +85,7 @@ cd frontend; npm run build; npm run e2e         # real-browser demo script + acc
   - git: `git -c http.sslBackend=schannel clone|push ...`
   - npm/Node: set `NODE_USE_SYSTEM_CA=1`.
 - `py -0p` may list a Python that is no longer installed; check with `Test-Path` on the listed path.
-- **"The database is schema version N but this app needs M"**: the `pramaan.db` file was made by a different version of the app. Re-create it with `seed_demo.py --reset` (this wipes the local database).
+- **Upgrading an existing database:** an older `pramaan.db` is upgraded in place the first time the app starts, after copying the file to `pramaan.db.bak-v<old version>` next to it. Your data is kept.
+- **"The database is schema version N but this app needs M"**: the file is newer than this app, or too old to upgrade. Re-create it with `seed_demo.py --reset` (this wipes the local database).
 - **Dashboard says "Degraded"**: the server is up but a readiness check failed (database or audit signing key). The reason is in the server's console; `GET /api/ready` only says ok or degraded.
 - To quote a failing request, give the `X-Request-ID` response header; the server log line carries the same id.

@@ -7,11 +7,14 @@ import { z } from 'zod'
 
 import { Field } from '@/components/Field'
 import { PageHeader } from '@/components/PageHeader'
+import { TwoFactorCard } from '@/components/TwoFactorCard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api, ApiError } from '@/lib/api'
 import { describe } from '@/lib/aria'
 import { useAuth } from '@/lib/auth'
+import { useT } from '@/lib/i18n'
+import { clockTime, exactTime } from '@/lib/time'
 import { ROLE_LABEL } from '@/lib/types'
 
 const schema = z
@@ -41,6 +44,7 @@ function Detail({ label, children }: { label: string; children: ReactNode }) {
 
 export default function Account() {
   const { user, endSession } = useAuth()
+  const t = useT()
   const [formError, setFormError] = useState<string | null>(null)
   const {
     register,
@@ -69,7 +73,7 @@ export default function Account() {
 
   return (
     <>
-      <PageHeader title="Account" description="Your details, and the password you sign in with." />
+      <PageHeader title={t('account.title')} description={t('account.description')} />
 
       <div className="grid max-w-4xl gap-6 lg:grid-cols-2 lg:items-start">
         <section aria-labelledby="details-h" className="rounded-lg border border-border bg-surface">
@@ -82,6 +86,14 @@ export default function Account() {
             <Detail label="Role">{ROLE_LABEL[user.role]}</Detail>
             {user.license_no && <Detail label="Registration number">{user.license_no}</Detail>}
             {user.org_name && <Detail label={user.role === 'pharmacist' ? 'Pharmacy' : 'Clinic'}>{user.org_name}</Detail>}
+            {user.session_ends_by && (
+              <Detail label="This session">
+                <span title={exactTime(user.session_ends_by)}>Ends by {clockTime(user.session_ends_by)} at the latest</span>
+                <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                  Sessions last 30 minutes and can be renewed up to this limit.
+                </span>
+              </Detail>
+            )}
             {user.patient_code && (
               <Detail label="Patient code">
                 <span className="font-mono">{user.patient_code}</span>
@@ -93,6 +105,8 @@ export default function Account() {
           </dl>
         </section>
 
+        <div className="flex flex-col gap-6">
+        <TwoFactorCard user={user} />
         <section aria-labelledby="password-h" className="rounded-lg border border-border bg-surface">
           <h2 id="password-h" className="border-b border-border px-5 py-3 text-sm font-semibold">
             Change password
@@ -124,6 +138,7 @@ export default function Account() {
             </Button>
           </form>
         </section>
+        </div>
       </div>
     </>
   )

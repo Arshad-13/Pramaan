@@ -133,6 +133,22 @@ describe('Audit page', () => {
     expect(call[1].method).toBe('POST')
   })
 
+  it('filters the log, offers the same filters to the CSV export, and says what the filters cover', async () => {
+    route()
+    renderPage(<Audit />)
+    const form = within(await screen.findByRole('form', { name: 'Filter the log' }))
+    await userEvent.selectOptions(form.getByLabelText('Done by'), 'pharmacist')
+    await userEvent.type(form.getByLabelText('From (UTC)'), '2026-10-01')
+    await vi.waitFor(() => expect(fetchMock.mock.calls.some(([u]) => String(u).includes('actor_role=pharmacist'))).toBe(true))
+    const call = fetchMock.mock.calls.map(([u]) => String(u)).find((u) => u.includes('actor_role=pharmacist') && u.includes('since='))!
+    expect(call).toContain('since=2026-10-01T00%3A00%3A00Z')
+    const exportLink = screen.getByRole('link', { name: /Export CSV/ })
+    expect(exportLink.getAttribute('href')).toMatch(/^\/api\/admin\/audit\/export\?.*actor_role=pharmacist/)
+    expect(screen.getByText(/Verify chain always checks the whole log/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(screen.queryByText(/Verify chain always checks the whole log/)).not.toBeInTheDocument()
+  })
+
   it('pages through older entries', async () => {
     route()
     renderPage(<Audit />)
@@ -174,6 +190,51 @@ describe('Admin security alerts', () => {
       return json(200, { items: [], total: 0 })
     })
     renderPage(<Admin />)
-    expect(await screen.findByText('No security alerts so far.')).toBeInTheDocument()
+    expect(await screen.findByText('No security alerts are waiting for you.')).toBeInTheDocument()
+  })
+
+  it('acknowledges and resolves an alert with a note', async () => {
+    const patches: { url: string; body: unknown }[] = []
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === '/api/auth/me') return json(200, { ...AUDITOR, role: 'admin' })
+      if (url.startsWith('/api/admin/security-events/')) {
+        patches.push({ url, body: JSON.parse(String(init?.body)) })
+        return json(200, {})
+      }
+      if (url.startsWith('/api/admin/security-events'))
+        return json(200, [{ id: 7, ts: '2026-10-20T10:00:00Z', user_id: 3, ip: null, event_type: 'POSSIBLE_REPLAY', severity: 'MEDIUM', details_json: '{}', status: 'OPEN' }])
+      return json(200, { items: [], total: 0 })
+    })
+    renderPage(<Admin />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Acknowledge' }))
+    await vi.waitFor(() => expect(patches).toHaveLength(1))
+    expect(patches[0]).toEqual({ url: '/api/admin/security-events/7', body: { status: 'ACKNOWLEDGED', note: null } })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Resolve' }))
+    await userEvent.type(screen.getByLabelText(/What was done/), 'False alarm')
+    await userEvent.click(screen.getByRole('button', { name: 'Mark resolved' }))
+    await vi.waitFor(() => expect(patches).toHaveLength(2))
+    expect(patches[1].body).toEqual({ status: 'RESOLVED', note: 'False alarm' })
+    expect(fetchMock.mock.calls.some(([u]) => String(u).includes('status=OPEN'))).toBe(true)
+  })
+
+  it('searches people by name or email and can reset two-step sign-in', async () => {
+    const calls: string[] = []
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      calls.push(`${init?.method ?? 'GET'} ${url}`)
+      if (url === '/api/auth/me') return json(200, { ...AUDITOR, role: 'admin' })
+      if (url.startsWith('/api/admin/security-events')) return json(200, [])
+      if (url.endsWith('/reset-mfa')) return json(200, {})
+      if (url.startsWith('/api/admin/users?limit=100'))
+        return json(200, { items: [{ ...AUDITOR, public_id: 'u9', name: 'Dr. Iyer', email: 'dr.iyer@clinic.test', role: 'doctor', mfa_enabled: true }], total: 1 })
+      return json(200, { items: [], total: 0 })
+    })
+    renderPage(<Admin />)
+    await userEvent.type(await screen.findByLabelText('Search people'), 'iyer')
+    await vi.waitFor(() => expect(calls.some((c) => c.includes('q=iyer'))).toBe(true))
+    await userEvent.click(await screen.findByRole('button', { name: /Reset two-step/ }))
+    expect(calls.some((c) => c.endsWith('/reset-mfa'))).toBe(false) // needs a second, confirming click
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm reset' }))
+    await vi.waitFor(() => expect(calls).toContain('POST /api/admin/users/u9/reset-mfa'))
   })
 })

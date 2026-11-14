@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -14,7 +14,16 @@ from app.core.uploads import MAX_BYTES
 from app.db import get_db
 from app.deps import require_role
 from app.models import Role, User
-from app.schemas import DispenseIn, DispenseOut, RecentActivityOut, VerifyOut, VerifyQRIn
+from app.schemas import (
+    DispenseHistoryOut,
+    DispenseIn,
+    DispenseOut,
+    HistoryOut,
+    RecentActivityOut,
+    VerifyOut,
+    VerifyQRIn,
+    VerifyResult,
+)
 from app.services import verification_service as verification
 
 router = APIRouter(tags=["verification"])
@@ -34,6 +43,27 @@ def _limit(user: User) -> None:
 @router.get("/verify/recent", response_model=RecentActivityOut)
 def recent(pharmacist: User = PharmacistUser, db: Session = Depends(get_db)) -> dict:
     return verification.recent_activity(db, pharmacist)
+
+
+@router.get("/verify/history", response_model=HistoryOut)
+def history(
+    result: VerifyResult | None = None,
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    pharmacist: User = PharmacistUser,
+    db: Session = Depends(get_db),
+) -> dict:
+    return verification.check_history(db, pharmacist, result=result, limit=limit, offset=offset)
+
+
+@router.get("/verify/dispenses", response_model=DispenseHistoryOut)
+def dispenses(
+    limit: int = Query(25, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    pharmacist: User = PharmacistUser,
+    db: Session = Depends(get_db),
+) -> dict:
+    return verification.dispense_history(db, pharmacist, limit=limit, offset=offset)
 
 
 @router.post("/verify/qr", response_model=VerifyOut)

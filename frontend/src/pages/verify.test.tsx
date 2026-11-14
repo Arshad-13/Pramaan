@@ -116,7 +116,7 @@ describe('timelineSteps', () => {
     for (const code of [
       'MALFORMED_QR', 'NOT_FOUND', 'DB_RECORD_ALTERED', 'QR_HASH_MISMATCH', 'INVALID_SIGNATURE',
       'KEY_ID_MISMATCH', 'KEY_NOT_FOUND', 'DOCTOR_KEY_REVOKED', 'DOCTOR_SUSPENDED', 'RX_REVOKED',
-      'FULLY_DISPENSED', 'RX_EXPIRED', 'RISK_ABOVE_THRESHOLD',
+      'FULLY_DISPENSED', 'RX_EXPIRED', 'RISK_ABOVE_THRESHOLD', 'RX_SUPERSEDED',
     ])
       expect(REASON_TEXT[code]).toBeTruthy()
   })
@@ -170,6 +170,23 @@ describe('Verify page', () => {
     expect(screen.getByRole('list', { name: 'Checks performed' })).toBeInTheDocument()
     const call = fetchMock.mock.calls.find(([u]) => u === '/api/verify/qr')!
     expect(JSON.parse(call[1].body)).toEqual({ qr_string: CODE })
+  })
+
+  it('verifies when Enter is pressed in the code box, and tells the pharmacist what to do next', async () => {
+    route(VALID)
+    renderVerify()
+    await userEvent.click(await screen.findByRole('tab', { name: /Paste code/ }))
+    await userEvent.type(screen.getByLabelText('Prescription code'), CODE + '{Enter}')
+    expect(await screen.findByRole('region', { name: 'Verification result' })).toBeInTheDocument()
+    expect(screen.getByText(/ask for the patient PIN/)).toBeInTheDocument()
+  })
+
+  it('says a replaced prescription must not be dispensed and points to the corrected one', async () => {
+    route({ ...VALID, result: 'REVOKED', reason_codes: ['RX_SUPERSEDED'], can_dispense: false })
+    renderVerify()
+    await pasteAndVerify()
+    expect(await screen.findByText(/Ask the patient for the corrected prescription/)).toBeInTheDocument()
+    expect(screen.getAllByText(/replaced this prescription with a corrected one/).length).toBeGreaterThan(0)
   })
 
   it('verifies a code from the live camera', async () => {

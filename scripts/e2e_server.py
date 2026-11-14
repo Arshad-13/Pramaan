@@ -34,6 +34,7 @@ def main() -> int:
         ANCHOR_FILE=str(E2E / "storage" / "anchors.jsonl"),
         RATE_LIMIT_ENABLED="false",
         COOKIE_SECURE="false",
+        DEMO_MODE="true",
     )
 
     import seed_demo

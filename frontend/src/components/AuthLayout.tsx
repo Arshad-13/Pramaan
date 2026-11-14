@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react'
 
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { Logo } from '@/components/Logo'
 import { SealFrame } from '@/components/SealFrame'
+import { useT } from '@/lib/i18n'
 import { RING_COLOR } from '@/lib/verdicts'
 
 /** Split layout shared by sign-in, register and activate: brand panel + a form column. */
@@ -14,6 +16,7 @@ export function AuthLayout({
   description?: string
   children: ReactNode
 }) {
+  const t = useT()
   return (
     <div className="grid min-h-dvh lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
       <aside className="relative hidden overflow-hidden bg-[oklch(0.2_0.05_258)] p-12 text-[oklch(0.96_0.006_255)] lg:flex lg:flex-col">
@@ -37,11 +40,14 @@ export function AuthLayout({
 
       <main className="flex items-center justify-center px-4 py-10">
         <div className="w-full max-w-sm">
-          <Logo className="mb-8 lg:hidden" />
+          <div className="mb-8 flex items-center justify-between gap-3">
+            <Logo className="lg:hidden" />
+            <LanguageSwitcher className="ml-auto" />
+          </div>
           <h1 className="font-serif text-2xl font-semibold tracking-tight">{title}</h1>
           {description && <p className="mt-1.5 text-muted-foreground">{description}</p>}
           <div className="mt-8">{children}</div>
-          <p className="mt-10 text-xs text-muted-foreground">Academic demo. Not for clinical use.</p>
+          <p className="mt-10 text-xs text-muted-foreground">{t('shell.footer')}</p>
         </div>
       </main>
     </div>

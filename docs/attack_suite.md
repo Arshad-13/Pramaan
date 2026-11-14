@@ -21,5 +21,8 @@ demo database. The same attacks run as tests in `tests/test_attack_suite.py`.
 | 14 | A pharmacist calls doctor and admin endpoints | Role x endpoint matrix (require_role) | Blocked | statuses=[403, 403, 403, 403, 403, 403, 403] |
 | 15 | Edit an audit row; edit and recompute; truncate the tail | HMAC hash chain + signed checkpoints + external anchor | Blocked | edit: detected, recompute: detected, truncate: detected |
 | 16 | Swap the anomaly model file for another | Model signature verified before unpickling | Blocked | warnings=['MODEL_UNAVAILABLE'], HIGH alerts so far=1 |
+| 17 | Dispense a prescription the doctor already replaced with a correction | Correction withdraws the original in the same transaction | Blocked | verify=REVOKED ['RX_SUPERSEDED'], dispense HTTP 409 |
+| 18 | Replay a one-time sign-in code, then guess codes until one works | Used-step memory + shared lockout counter on the second step | Blocked | replay HTTP 401, 5 wrong guesses HTTP [401], valid code after lockout HTTP 401 |
+| 19 | Close a security alert as the auditor, export the log as a pharmacist | Role checks: only admins close alerts, only auditors export | Blocked | auditor closes alert HTTP 403, pharmacist exports HTTP 403, patient reads alerts HTTP 403 |
 
-**16 of 16 attacks detected or blocked.**
+**19 of 19 attacks detected or blocked.**

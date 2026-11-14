@@ -24,6 +24,7 @@ from app.config import ConfigError, get_settings
 from app.db import get_engine, init_db
 from app.errors import ServiceError
 from app.routers import admin, auth, keys, prescriptions, verify
+from app.schemas import PublicConfigOut
 
 logger = logging.getLogger("pramaan")
 
@@ -106,6 +107,11 @@ def build_api_router() -> APIRouter:
             logger.error("readiness check failed: %s", name)
         status = {"status": "degraded" if failed else "ok"}
         return JSONResponse(status, status_code=503 if failed else 200)
+
+    @api.get("/public-config", response_model=PublicConfigOut)
+    def public_config() -> PublicConfigOut:
+        """What the sign-in page may know before anyone has signed in. Nothing sensitive."""
+        return PublicConfigOut(demo_mode=get_settings().demo_mode)
 
     api.include_router(auth.router)
     api.include_router(admin.router)

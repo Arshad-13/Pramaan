@@ -36,3 +36,6 @@ models/
 data/synthetic/
 .env.bak
 .e2e/
+
+# Backups made by the in-place schema upgrade
+*.bak-v*

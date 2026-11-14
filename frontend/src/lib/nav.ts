@@ -1,6 +1,7 @@
 import {
   FilePlus2,
   Files,
+  History,
   LayoutDashboard,
   ScanLine,
   ScrollText,
@@ -8,29 +9,34 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
+import type { MessageKey } from '@/lib/i18n'
 import type { Role } from '@/lib/types'
 
 export interface NavItem {
   to: string
   label: string
+  /** Translation key for the label. */
+  key: MessageKey
   icon: LucideIcon
   end?: boolean
   roles?: Role[] // omitted = every signed-in role
 }
 
 export const NAV: NavItem[] = [
-  { to: '/', label: 'Overview', icon: LayoutDashboard, end: true },
-  { to: '/prescriptions/new', label: 'New prescription', icon: FilePlus2, roles: ['doctor'] },
+  { to: '/', label: 'Overview', key: 'nav.overview', icon: LayoutDashboard, end: true },
+  { to: '/prescriptions/new', label: 'New prescription', key: 'nav.newRx', icon: FilePlus2, roles: ['doctor'] },
   {
     to: '/prescriptions',
     label: 'My prescriptions',
+    key: 'nav.myRx',
     icon: Files,
     end: true,
     roles: ['doctor', 'patient'],
   },
-  { to: '/verify', label: 'Verify', icon: ScanLine, roles: ['pharmacist'] },
-  { to: '/admin', label: 'Administration', icon: UsersRound, roles: ['admin'] },
-  { to: '/audit', label: 'Audit log', icon: ScrollText, roles: ['auditor'] },
+  { to: '/verify', label: 'Verify', key: 'nav.verify', icon: ScanLine, end: true, roles: ['pharmacist'] },
+  { to: '/verify/history', label: 'History', key: 'nav.history', icon: History, roles: ['pharmacist'] },
+  { to: '/admin', label: 'Administration', key: 'nav.admin', icon: UsersRound, roles: ['admin'] },
+  { to: '/audit', label: 'Audit log', key: 'nav.audit', icon: ScrollText, roles: ['auditor'] },
 ]
 
 const EXTRA_TITLES: Record<string, string> = {

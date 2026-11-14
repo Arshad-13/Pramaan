@@ -1,8 +1,8 @@
 /**
- * Demo accounts created by `scripts/seed_demo.py`, hard-coded so every role can be tried with one click.
- * These are throwaway local-demo passwords. Build with VITE_DEMO_LOGINS=false to hide the panels.
+ * Demo accounts created by `scripts/seed_demo.py`, so every role can be tried with one click.
+ * These are throwaway local-demo passwords. They are shown only when the server reports demo mode
+ * (`DEMO_MODE=true`, see `usePublicConfig`); a normal deployment never displays them.
  */
-export const DEMO_LOGINS_ENABLED = import.meta.env.VITE_DEMO_LOGINS !== 'false'
 
 export type DemoRole = 'admin' | 'auditor' | 'doctor' | 'pharmacist' | 'patient'
 

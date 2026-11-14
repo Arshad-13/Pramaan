@@ -1,15 +1,17 @@
 import { FlaskConical } from 'lucide-react'
 
-import { DEMO_ACCOUNTS, DEMO_LOGINS_ENABLED, type DemoAccount } from '@/lib/demoAccounts'
+import { DEMO_ACCOUNTS, type DemoAccount } from '@/lib/demoAccounts'
+import { usePublicConfig } from '@/lib/publicConfig'
 
 const heading = 'flex items-center gap-2 text-sm font-medium'
 const panel = 'mt-8 rounded-lg border border-dashed border-border-strong bg-surface-2 p-4'
 const chip =
   'rounded-md border border-border bg-surface px-3 py-2 text-left transition-colors duration-150 hover:border-foreground/40 focus-visible:border-ring'
 
-/** One-click fill of the sign-in form with a seeded demo account. Hidden when VITE_DEMO_LOGINS=false. */
+/** One-click fill of the sign-in form with a seeded demo account. Shown only in server demo mode. */
 export function DemoLogins({ onPick }: { onPick: (account: DemoAccount) => void }) {
-  if (!DEMO_LOGINS_ENABLED) return null
+  const { demo_mode } = usePublicConfig()
+  if (!demo_mode) return null
   return (
     <section aria-labelledby="demo-logins" className={panel}>
       <h2 id="demo-logins" className={heading}>
@@ -32,7 +34,8 @@ export function DemoLogins({ onPick }: { onPick: (account: DemoAccount) => void 
 
 /** One-click fill of the register form with fresh, unique test details. */
 export function DemoSignups({ onPick }: { onPick: (role: 'patient' | 'pharmacist') => void }) {
-  if (!DEMO_LOGINS_ENABLED) return null
+  const { demo_mode } = usePublicConfig()
+  if (!demo_mode) return null
   return (
     <section aria-labelledby="demo-signups" className={panel}>
       <h2 id="demo-signups" className={heading}>

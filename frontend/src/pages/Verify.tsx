@@ -12,17 +12,18 @@ import { Button } from '@/components/ui/button'
 import { VerificationTimeline } from '@/components/VerificationTimeline'
 import { VerifiedRecord } from '@/components/VerifiedRecord'
 import { api, ApiError } from '@/lib/api'
+import { useT, type MessageKey } from '@/lib/i18n'
 import type { VerifyResult } from '@/lib/types'
-import { reasonText } from '@/lib/verify'
+import { nextActionKey, reasonText } from '@/lib/verify'
 import { VERDICT_META } from '@/lib/verdicts'
 import { cn } from '@/lib/utils'
 
 type Tab = 'scan' | 'upload' | 'paste'
 
 const TABS = [
-  ['scan', 'Scan', QrCode],
-  ['upload', 'Upload photo or PDF', FileUp],
-  ['paste', 'Paste code', TextCursorInput],
+  ['scan', 'verify.tab.scan', QrCode],
+  ['upload', 'verify.tab.upload', FileUp],
+  ['paste', 'verify.tab.paste', TextCursorInput],
 ] as const
 
 const TONE_PANEL = {
@@ -32,21 +33,24 @@ const TONE_PANEL = {
 } as const
 
 function Verdict({ result }: { result: VerifyResult }) {
+  const t = useT()
   const meta = VERDICT_META[result.result]
+  const label = t(`verdict.${result.result}.label` as MessageKey)
   const Icon = meta.icon
   return (
-    <section aria-label="Verification result" aria-live="polite" className={cn('flex flex-wrap items-center gap-5 rounded-lg border p-5', TONE_PANEL[meta.tone])}>
+    <section aria-label={t('verify.resultLabel')} aria-live="polite" className={cn('flex flex-wrap items-center gap-5 rounded-lg border p-5', TONE_PANEL[meta.tone])}>
       <Seal verdict={result.result} size={112} />
       <div className="min-w-0 flex-1">
         <Badge tone={meta.tone}>
-          <Icon aria-hidden="true" /> {meta.label}
+          <Icon aria-hidden="true" /> {label}
         </Badge>
-        <h2 className="mt-2 font-serif text-2xl font-semibold tracking-tight md:text-3xl">{meta.label}</h2>
-        <p className="mt-1 max-w-prose text-foreground">{meta.summary}</p>
+        <h2 className="mt-2 font-serif text-2xl font-semibold tracking-tight md:text-3xl">{label}</h2>
+        <p className="mt-1 max-w-prose text-foreground">{t(`verdict.${result.result}.summary` as MessageKey)}</p>
+        <p className="mt-2 max-w-prose text-sm font-medium">{t(nextActionKey(result))}</p>
         {result.result !== 'VALID' && result.reason_codes.length > 0 && (
           <ul className="mt-3 space-y-1 text-sm">
             {result.reason_codes.map((code) => (
-              <li key={code}>{reasonText(code)}</li>
+              <li key={code}>{reasonText(code, t)}</li>
             ))}
           </ul>
         )}
@@ -61,6 +65,7 @@ function Verdict({ result }: { result: VerifyResult }) {
  * an amber box under a green verdict would send two opposite messages.
  */
 function RiskNotes({ result }: { result: VerifyResult }) {
+  const t = useT()
   const notes = result.risk?.explanations ?? []
   if (notes.length === 0) return null
   const flagged = result.result !== 'VALID'
@@ -71,7 +76,7 @@ function RiskNotes({ result }: { result: VerifyResult }) {
       className={cn('rounded-lg border p-5', flagged ? 'border-warning-border bg-warning-soft' : 'border-border bg-surface-2')}
     >
       <h3 id="risk-notes-h" className={cn('flex items-center gap-2 text-sm font-semibold', flagged && 'text-warning')}>
-        <Icon className="size-4" aria-hidden="true" /> {flagged ? 'Why this was flagged' : 'Worth knowing'}
+        <Icon className="size-4" aria-hidden="true" /> {flagged ? t('verify.whyFlagged') : t('verify.worthKnowing')}
       </h3>
       <ul className="mt-2 space-y-1 text-sm text-foreground">
         {notes.map((text) => (
@@ -83,6 +88,7 @@ function RiskNotes({ result }: { result: VerifyResult }) {
 }
 
 export default function Verify() {
+  const t = useT()
   const [tab, setTab] = useState<Tab>('scan')
   const [text, setText] = useState('')
   const [qr, setQr] = useState<string | null>(null)
@@ -99,11 +105,11 @@ export default function Verify() {
       setResult(await api<VerifyResult>('/verify/qr', { method: 'POST', body: { qr_string: trimmed } }))
       setQr(trimmed)
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Something went wrong. Try again.')
+      setError(e instanceof ApiError ? e.message : t('common.generic'))
     } finally {
       setPending(false)
     }
-  }, [])
+  }, [t])
 
   const runUpload = useCallback(async (file: File) => {
     setPending(true)
@@ -115,11 +121,11 @@ export default function Verify() {
       setResult(outcome)
       setQr(outcome.qr_string ?? null)
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Something went wrong. Try again.')
+      setError(e instanceof ApiError ? e.message : t('common.generic'))
     } finally {
       setPending(false)
     }
-  }, [])
+  }, [t])
 
   function reset() {
     setResult(null)
@@ -153,12 +159,12 @@ export default function Verify() {
   return (
     <>
       <PageHeader
-        title="Verify"
-        description="Scan a prescription's QR code, upload a photo or PDF of the page, or paste the code. You get a verdict and the evidence behind it."
+        title={t('verify.title')}
+        description={t('verify.description')}
         actions={
           result ? (
             <Button variant="outline" onClick={reset}>
-              <ScanLine aria-hidden="true" /> Verify another
+              <ScanLine aria-hidden="true" /> {t('verify.another')}
             </Button>
           ) : undefined
         }
@@ -166,7 +172,7 @@ export default function Verify() {
 
       {!result && (
         <div className="max-w-xl">
-          <div role="tablist" aria-label="How to enter the code" className="mb-5 inline-flex rounded-md border border-border bg-surface-2 p-0.5">
+          <div role="tablist" aria-label={t('verify.howToEnter')} className="mb-5 inline-flex rounded-md border border-border bg-surface-2 p-0.5">
             {TABS.map(([value, label, Icon]) => (
               <button
                 key={value}
@@ -183,7 +189,7 @@ export default function Verify() {
                   tab === value ? 'bg-surface text-foreground shadow-[inset_0_0_0_1px_var(--border)]' : 'text-muted-foreground hover:text-foreground',
                 )}
               >
-                <Icon className="size-4" aria-hidden="true" /> {label}
+                <Icon className="size-4" aria-hidden="true" /> {t(label)}
               </button>
             ))}
           </div>
@@ -194,7 +200,7 @@ export default function Verify() {
           {tab === 'paste' && (
             <form onSubmit={onPaste} className="space-y-3">
               <label htmlFor="qr-text" className="text-sm font-medium">
-                Prescription code
+                {t('verify.codeLabel')}
               </label>
               <textarea
                 id="qr-text"
@@ -203,12 +209,19 @@ export default function Verify() {
                 autoComplete="off"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => {
+                  // The code is a single line, so Enter can submit; Shift+Enter still adds a line.
+                  if (e.key === 'Enter' && !e.shiftKey && text.trim() && !pending) {
+                    e.preventDefault()
+                    void run(text)
+                  }
+                }}
                 placeholder="PRM2...."
                 className="w-full rounded-md border border-border-strong bg-surface px-3 py-2 font-mono text-sm text-foreground placeholder:text-muted-foreground transition-colors duration-150 hover:border-foreground/40 focus-visible:border-ring"
               />
               <Button type="submit" size="lg" disabled={pending || !text.trim()} aria-busy={pending}>
                 {pending && <Loader2 className="animate-spin" aria-hidden="true" />}
-                Verify
+                {t('verify.submit')}
               </Button>
             </form>
           )}
@@ -216,7 +229,7 @@ export default function Verify() {
 
           {pending && tab === 'scan' && (
             <p role="status" className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" aria-hidden="true" /> Checking...
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" /> {t('verify.checking')}
             </p>
           )}
           {error && (
@@ -238,7 +251,7 @@ export default function Verify() {
             </div>
             <div className="space-y-6 lg:order-1">
               <div>
-                <h3 className="mb-3 text-sm font-semibold">Checks</h3>
+                <h3 className="mb-3 text-sm font-semibold">{t('verify.checks')}</h3>
                 <VerificationTimeline result={result} />
               </div>
               {result.overlay && <TamperOverlay overlay={result.overlay} zones={result.content_zones ?? []} />}
