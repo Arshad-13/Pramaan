@@ -140,7 +140,7 @@ Also built: live `POST /prescriptions/risk-check` (typo hints, score, whether a 
 - [x] `scripts/attack_suite.py`: attacks #1, 3, 6, 8, 9, 10, 11, 13, 14, 15; results table (M2)
 - [x] Playwright e2e for the demo script; screenshots saved for the deck (M4)
 - [x] `seed_demo.py` creates activated doctors, approved pharmacists, patients, auditor, expired + revoked samples (M4)
-- [ ] `code-review` and `security-review` run on crypto, auth, dispense code; findings fixed (all) (only a manual grep-level review so far)
+- [x] Code and security review of crypto, auth, dispense code; findings fixed (all) (Tue 27 Oct, see `docs/security_review.md`: 1 medium and 1 low fixed, 5 accepted with reasons)
 
 **Done when:** full demo (Section 18) runs in the browser; attack suite reports every attack detected/blocked. **FEATURE FREEZE at end of Tue 27.**
 

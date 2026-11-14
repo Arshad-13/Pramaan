@@ -46,6 +46,7 @@ from app.core.payload import iso_z
 from app.core.qr import ParsedQR, QRFormatError, parse_qr
 from app.errors import BadRequest, Conflict, Forbidden, Locked, PayloadTooLarge, ServiceBusy
 from app.models import (
+    AuditLog,
     Dispense,
     DoctorKey,
     KeyStatus,
@@ -132,6 +133,31 @@ def _parse_iso_z(value: str) -> datetime | None:
 # --- the decision pipeline ---------------------------------------------------
 
 
+def _pin_policy_intact(db: Session, rx: Prescription) -> bool:
+    """Does `require_pin` still match what was recorded when the prescription was issued?
+
+    The signed payload does not carry this setting, and the prescriptions table is not signed, so
+    someone who can write to the database could switch the PIN off. The issue-time audit entry is
+    sealed with the audit key, which a database-only attacker does not have. Prescriptions issued
+    before the setting was recorded (no key in the entry) are accepted as they are.
+    """
+    entry = db.scalars(
+        select(AuditLog)
+        .where(
+            AuditLog.action.in_(("RX_ISSUED", "RX_ISSUED_WITH_OVERRIDE")),
+            AuditLog.resource_id == rx.id,
+        )
+        .order_by(AuditLog.seq)
+        .limit(1)
+    ).first()
+    if entry is None:
+        return True
+    if not audit.entry_is_authentic(entry):  # edited after the fact, e.g. to drop the setting
+        return False
+    recorded = json.loads(entry.details_json).get("require_pin")
+    return recorded is None or recorded == bool(rx.require_pin)
+
+
 def evaluate(db: Session, qr_string: str, scanner_id: int | None = None) -> Evaluation:
     try:
         parsed = parse_qr(qr_string)
@@ -209,7 +235,7 @@ def evaluate(db: Session, qr_string: str, scanner_id: int | None = None) -> Eval
             )
         except (KeyError, TypeError):
             consistent = False
-        if not consistent:
+        if not consistent or not _pin_policy_intact(db, rx):
             flag("DB_RECORD_ALTERED")
 
     ev.checks = {
@@ -482,8 +508,6 @@ def verify_upload(
 
 
 def _recent_pin_failures(db: Session, rx_id: str) -> int:
-    from app.models import AuditLog
-
     since = clock.now_utc() - timedelta(minutes=PIN_ATTEMPT_WINDOW_MINUTES)
     return (
         db.scalar(

@@ -359,6 +359,9 @@ def issue_prescription(db: Session, doctor: User, data: IssueIn) -> IssueOut:
             "medicines": len(data.medicines),
             "max_fills": data.max_fills,
             "validity_days": data.validity_days,
+            # Sealed here because the prescriptions table is not signed: verification compares the
+            # column with this chained entry, so switching the PIN off in the database is caught.
+            "require_pin": data.require_pin,
             "risk_score": risk.score,
             "risk_flags": risk.flags,
         },

@@ -1,5 +1,7 @@
 # Pramaan: Tamper-Proof Prescription Verifier
 
+[![CI](https://github.com/Arshad-13/Pramaan/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Arshad-13/Pramaan/actions/workflows/ci.yml)
+
 *Pramaan (प्रमाण) means "proof".* A doctor issues a digitally signed prescription with a QR code; a pharmacist scans it and learns whether it is genuine, tampered, expired, already used, revoked or suspicious. Course project for AI 331 Information Security and Cryptography, SVNIT Surat.
 
 > **Academic demo. Not for clinical use.** Medical reference data in `data/` is approximate.
@@ -54,11 +56,11 @@ Sample files are in `samples/demo/` (`ready.pdf`, forged variants, one `.qr.txt`
 5. **Other states:** paste `expired`, `revoked`, `suspicious`, `used` and `controlled` codes.
 6. **Audit log:** as the auditor, *Verify chain*. To show detection, run `python scripts/tamper_audit_demo.py --mode edit` (works on a copy).
 7. **Encryption and key rotation:** `storage/*.pdf.enc` is ciphertext; stop the API, back up, run `python scripts/rotate_master_key.py`, start it again: PDFs still download.
-8. **Attack suite:** `python scripts/attack_suite.py` prints what stopped each of 16 attacks ([results](docs/attack_suite.md)).
+8. **Attack suite:** `python scripts/attack_suite.py` prints what stopped each of 16 attacks ([results](docs/attack_suite.md)). Run it right after a fresh `seed_demo.py --reset`: it issues prescriptions as Dr. Shah, and after many runs the doctor-burst rule (correctly) asks for an override reason, which stops attacks 6 to 10 from running.
 
 ## Documents
 
-[`docs/architecture.md`](docs/architecture.md) (diagrams), [`docs/threat_model.md`](docs/threat_model.md), [`docs/assumptions.md`](docs/assumptions.md), [`docs/evaluation.md`](docs/evaluation.md) (upload checking and anomaly model, with honest caveats), [`docs/attack_suite.md`](docs/attack_suite.md). Screenshots from the browser test are in `docs/screenshots/`.
+[`docs/architecture.md`](docs/architecture.md) (diagrams), [`docs/crypto_spec.md`](docs/crypto_spec.md) (algorithms and parameters), [`docs/threat_model.md`](docs/threat_model.md), [`docs/security_review.md`](docs/security_review.md) (code review findings), [`docs/assumptions.md`](docs/assumptions.md), [`docs/evaluation.md`](docs/evaluation.md) (upload checking and anomaly model, with honest caveats), [`docs/attack_suite.md`](docs/attack_suite.md). Screenshots from the browser test are in `docs/screenshots/`.
 
 ## Checks
 

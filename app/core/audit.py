@@ -316,6 +316,26 @@ def _signature_ok(keys: AuditKeys, seq: int, head_hash: str, signature_b64: str)
     )
 
 
+def entry_is_authentic(row: AuditLog, *, keys: AuditKeys | None = None) -> bool:
+    """True if this one entry's own seal is intact (its hash matches its content and link).
+
+    Cheap check for a single row, used to trust a fact recorded at the time of an action (for
+    example whether a prescription required the patient's PIN). It does not prove the entry is in
+    the right place in the chain; `verify_chain` does that.
+    """
+    keys = keys or default_keys()
+    try:
+        body = _entry_body(
+            row.seq, row.ts, row.actor_id, row.actor_role, row.action,
+            row.resource_id, json.loads(row.details_json),
+        )  # fmt: skip
+    except (ValueError, CanonicalError):
+        return False
+    return constant_time_equal(
+        compute_entry_hash(keys.hmac_key, row.prev_hash, body), row.entry_hash
+    )
+
+
 def verify_chain(db: Session, *, keys: AuditKeys | None = None) -> dict[str, Any]:
     """Recompute every hash, then check checkpoints and the anchor file.
 

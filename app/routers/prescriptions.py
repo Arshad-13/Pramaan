@@ -5,6 +5,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
+from app.core.ratelimit import limiter
 from app.db import get_db
 from app.deps import require_role
 from app.models import Role, User
@@ -81,9 +83,11 @@ def revoke(rx_id: str, doctor: User = DoctorUser, db: Session = Depends(get_db))
 def lookup_patient(
     email: str | None = Query(None, max_length=254),
     code: str | None = Query(None, max_length=16),
-    _doctor: User = DoctorUser,
+    doctor: User = DoctorUser,
     db: Session = Depends(get_db),
 ) -> PatientLookupOut:
+    # Exact-match lookup answers "is this address a patient here?", so it must not be scriptable.
+    limiter.check(f"lookup:user:{doctor.id}", get_settings().verify_rate_per_minute)
     patient = rx.lookup_patient(db, email=email, code=code)
     return PatientLookupOut(
         public_id=patient.public_id, name=patient.name, patient_code=patient.patient_code
