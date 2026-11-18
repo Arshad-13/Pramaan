@@ -30,7 +30,7 @@ cd ..
 # 4. Run API (:8000) and Vite dev server (:5173) together
 .\scripts\run_dev.ps1
 ```
-
+Abcdefghijklmnopqrstuvwxyz
 Open <http://localhost:5173>. For a single-process build, run `npm run build` in `frontend/` and then `uvicorn app.main:app`; FastAPI serves the built app on <http://localhost:8000>.
 
 The app **refuses to start** if `.env` is missing or contains placeholder or malformed secrets.
